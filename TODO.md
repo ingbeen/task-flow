@@ -10,41 +10,41 @@
 
 ### 1-1. 프로젝트 초기화
 
-- [ ] Spring Boot 3.x 프로젝트 생성 (Java 17, Gradle)
-- [ ] 의존성 추가: Spring Web, Spring Data JPA, Flyway, MySQL Driver, Actuator, Validation
-- [ ] 패키지 구조 설정 (`controller`, `service`, `repository`, `entity`, `dto`, `config`)
-- [ ] `.gitignore` 설정
+- [x] Spring Boot 3.x 프로젝트 생성 (Java 17, Gradle)
+- [x] 의존성 추가: Spring Web, Spring Data JPA, Flyway, MySQL Driver, Actuator, Validation
+- [x] 패키지 구조 설정 (`controller`, `service`, `repository`, `entity`, `dto`, `config`)
+- [x] `.gitignore` 설정
 
 ### 1-2. Profile 및 설정 분리
 
-- [ ] `application.yml` — 공통 설정
-- [ ] `application-dev.yml` — 로컬 MySQL, Flyway 자동 실행, 디버그 로그
-- [ ] `application-prod.yml` — RDS 연결용 환경변수 참조, Actuator 노출 최소화 (`health`만)
+- [x] `application.yml` — 공통 설정
+- [x] `application-dev.yml` — 로컬 MySQL, Flyway 자동 실행, 디버그 로그
+- [x] `application-prod.yml` — RDS 연결용 환경변수 참조, Actuator 노출 최소화 (`health`만)
   - _AWS 확장 대비: prod 프로필은 `${DB_HOST}` 등 환경변수로 주입받는 구조_
 
 ### 1-3. Flyway 마이그레이션
 
-- [ ] `V1__init.sql` — tasks 테이블 생성 (id, title, description, status, priority, due_date, created_at, updated_at)
-- [ ] `V2__indexes.sql` — 인덱스 추가 (status, priority, created_at, due_date)
+- [x] `V1__init.sql` — tasks 테이블 생성 (id, title, description, status, priority, due_date, created_at, updated_at)
+- [x] `V2__indexes.sql` — 인덱스 추가 (status, priority, created_at, due_date)
 
 ### 1-4. 엔티티 / 리포지토리
 
-- [ ] `Task` 엔티티 (JPA 매핑, `@CreatedDate`/`@LastModifiedDate` 또는 수동 관리)
-- [ ] `TaskStatus` enum (TODO, DOING, DONE)
-- [ ] `TaskPriority` enum (LOW, MEDIUM, HIGH)
-- [ ] `TaskRepository` (JpaRepository + 검색/필터용 쿼리)
+- [x] `Task` 엔티티 (JPA 매핑, `@CreatedDate`/`@LastModifiedDate` 또는 수동 관리)
+- [x] `TaskStatus` enum (TODO, DOING, DONE)
+- [x] `TaskPriority` enum (LOW, MEDIUM, HIGH)
+- [x] `TaskRepository` (JpaRepository + 검색/필터용 쿼리)
 
 ### 1-5. DTO / Validation
 
-- [ ] `TaskCreateRequest` — title 필수, description/dueDate/status/priority 선택
-- [ ] `TaskUpdateRequest` — PUT 전체 교체용
-- [ ] `TaskResponse` — API 응답용
-- [ ] `PageResponse<T>` — 페이징 응답 래퍼 (page, size, totalElements, totalPages, content)
+- [x] `TaskCreateRequest` — title 필수, description/dueDate/status/priority 선택
+- [x] `TaskUpdateRequest` — PUT 전체 교체용
+- [x] `TaskResponse` — API 응답용
+- [x] `PageResponse<T>` — 페이징 응답 래퍼 (page, size, totalElements, totalPages, content)
 
 ### 1-6. Service / Controller
 
-- [ ] `TaskService` — CRUD + 페이징/필터/검색/정렬 로직
-- [ ] `TaskController` — REST API 엔드포인트:
+- [x] `TaskService` — CRUD + 페이징/필터/검색/정렬 로직
+- [x] `TaskController` — REST API 엔드포인트:
   - `GET /api/tasks` — 목록 조회 (page, size, status, priority, q, sort)
   - `POST /api/tasks` — 생성
   - `PUT /api/tasks/{id}` — 수정 (전체 교체)
@@ -62,9 +62,9 @@
 
 ### 1-9. Actuator 설정
 
-- [ ] `/actuator/health` 활성화 (독립 경로, `/api` 하위 아님)
-- [ ] dev 프로필: 기본 노출
-- [ ] prod 프로필: `management.endpoints.web.exposure.include=health`
+- [x] `/actuator/health` 활성화 (독립 경로, `/api` 하위 아님)
+- [x] dev 프로필: 기본 노출
+- [x] prod 프로필: `management.endpoints.web.exposure.include=health`
 
 ---
 
