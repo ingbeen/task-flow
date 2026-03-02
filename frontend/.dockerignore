@@ -1,4 +1,17 @@
+# 의존성 (컨테이너에서 npm ci로 설치)
 node_modules/
+
+# 빌드 결과물
 dist/
-.git/
+
+# IDE
 .vscode/
+
+# 문서
+*.md
+
+# Docker/Git
+Dockerfile*
+.dockerignore
+.git/
+.gitignore

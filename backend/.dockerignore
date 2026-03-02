@@ -1,6 +1,20 @@
+# 빌드 캐시
 .gradle/
 build/
+
+# IDE
 .idea/
 *.iml
 .vscode/
+
+# 테스트 코드 (bootJar -x test이므로 불필요)
+src/test/
+
+# 문서
+*.md
+
+# Docker/Git
+Dockerfile*
+.dockerignore
 .git/
+.gitignore

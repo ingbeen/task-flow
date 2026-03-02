@@ -33,7 +33,10 @@
 - Spring profiles(dev/prod) 분리
 - 헬스체크: **Spring Actuator `/actuator/health`** (Actuator는 `/api` 하위가 아닌 독립 경로)
 - Actuator 노출 제한: `management.endpoints.web.exposure.include=health` (prod)
-- 로깅: request logging filter(method, path, status, latency)
+- 로깅: request logging filter(method, path, status, latency), SLF4J fluent API `addKeyValue()`로 구조화된 필드 출력
+- 로그 포맷: **dev=텍스트(가독성)**, **prod=JSON(CloudWatch Logs Insights 호환)** — Spring Boot 3.4+ 내장 structured logging (`logstash` 포맷)
+- Graceful Shutdown: `server.shutdown=graceful`, `timeout-per-shutdown-phase=30s` (Spring Boot 3.4+ 기본값이지만 명시)
+- 헬스체크 상세: dev에서 `show-details=always` (DB 연결 상태 표시), prod에서 `show-details=never` (보안)
 - DB 마이그레이션: **Flyway** (버전 SQL)
 - JVM 메모리: **`-Xms256m -Xmx512m`** (t3.small 2GB 환경, 안정적 동작 목표)
 
@@ -338,6 +341,11 @@ maximumPercent = 100
 - 로그 그룹:
   - `/ecs/taskboard-frontend` (nginx)
   - `/ecs/taskboard-backend` (Spring Boot)
+- **prod 프로필에서 JSON 구조화 로그 출력** (`logging.structured.format.console=logstash`)
+  - Spring Boot 3.4+ 내장 기능, 추가 라이브러리 불필요
+  - CloudWatch Logs Insights에서 JSON 필드별 쿼리/필터링 가능
+  - 예: `fields @timestamp, http_method, uri, status, latency_ms | filter status >= 400`
+- RequestLoggingFilter에서 `addKeyValue()`로 http_method, uri, status, latency_ms를 개별 JSON 필드로 출력
 
 ### 3.14 비밀값 관리 (SSM Parameter Store)
 
@@ -442,11 +450,13 @@ maximumPercent = 100
 1. Gradle/Maven build
 2. JRE 이미지로 실행
 3. JVM 옵션: `-Xms256m -Xmx512m`
+4. ENTRYPOINT에 `exec` 사용 — java가 PID 1이 되어 Docker SIGTERM을 직접 수신 (graceful shutdown 보장)
 
 ### docker-compose.yml (로컬)
 
 - services: frontend(nginx:80), backend(8080), db(MySQL)
 - nginx proxy_pass: `http://backend:8080` (서비스명)
+- backend `stop_grace_period: 35s` — Spring graceful shutdown(30s) + 여유 5s
 
 ### AWS ECS Task Definitions
 
@@ -476,6 +486,9 @@ maximumPercent = 100
 ### AWS 1단계: 수동 배포
 
 1. `docker build` → `docker tag` → `docker push` (ECR, 이미지 2개)
+   - 자동화 스크립트: `scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]`
+   - git short hash를 이미지 태그로 사용 (커밋 추적)
+   - frontend 빌드 시 `NGINX_CONF=nginx-aws.conf` 자동 적용
 2. AWS 콘솔에서 ECS Service 업데이트 (새 Task Definition 반영)
 
 ### AWS 2단계: GitHub Actions 자동화
@@ -604,6 +617,11 @@ maximumPercent = 100
 | Actuator 독립 경로            | `/api`와 분리가 운영 표준                      | `/api/actuator`: 비표준, 경로 혼란     |
 | Actuator health 외부 공개     | 학습 목적, 노출 범위 health로 최소화           | 실무: 내부 ALB/WAF/별도 포트로 제한    |
 | JVM -Xmx512m / 컨테이너 768MB | 힙 외 JVM 오버헤드(~1.5배) 고려, OOM Kill 방지 | -Xmx256m/512MB: 빠듯, GC 압박          |
+| Graceful Shutdown 명시          | ECS 배포 시 진행 중 요청 완료 보장               | immediate: 배포 시 502 에러 발생        |
+| ENTRYPOINT exec                 | java가 PID 1 → Docker SIGTERM 직접 수신          | sh -c: SIGTERM 미전달, 강제 종료        |
+| prod JSON 로그 (내장 structured)| CloudWatch Logs Insights 쿼리 가능, 추가 라이브러리 불필요 | 텍스트: 파싱 어려움                     |
+| dev health show-details=always  | DB 연결 상태 즉시 확인, 디버깅 용이              | never: 상세 정보 숨김                   |
+| ECR 푸시 스크립트               | 수동 배포 자동화, git hash 태그로 커밋 추적      | 수동 명령어: 실수 가능, 반복 비효율     |
 
 ### D) 트러블슈팅
 
@@ -627,6 +645,8 @@ maximumPercent = 100
 | nginx 역할      | 정적 서빙 + API/Actuator 프록시  | **정적 서빙만**                           |
 | 프론트 코드     | `/api/...` 호출                  | `/api/...` 호출 (동일)                    |
 | 헬스체크        | `localhost/actuator/health`      | ALB → `/actuator/health` (TG가 직접 체크) |
+| 로그 포맷       | 텍스트 (가독성)                  | **JSON** (CloudWatch Logs Insights 호환)  |
+| Shutdown        | `stop_grace_period: 35s`         | ECS `stopTimeout: 35` (SIGTERM → graceful)|
 | DB              | 로컬 MySQL 컨테이너              | RDS MySQL (private subnet)                |
 | 비밀값          | docker-compose env               | SSM Parameter Store                       |
 | 네트워크        | Compose 기본 네트워크            | awsvpc (Task별 ENI)                       |

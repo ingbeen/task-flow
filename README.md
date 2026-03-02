@@ -130,9 +130,23 @@ curl -X DELETE http://localhost/api/tasks/1
 # 필터/검색/정렬/페이징
 curl "http://localhost/api/tasks?status=TODO&priority=HIGH&q=검색어&page=0&size=10&sort=createdAt,desc"
 
-# 헬스체크
+# 헬스체크 (dev에서 DB 연결 상태 포함)
 curl http://localhost/actuator/health
 ```
+
+## AWS 배포 (ECR 푸시)
+
+```bash
+# ECR 이미지 빌드 및 푸시 (프로젝트 루트에서 실행)
+./scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]
+
+# 예시 (서울 리전)
+./scripts/ecr-push.sh 123456789012 ap-northeast-2
+```
+
+- git short hash를 이미지 태그로 사용 (커밋 추적)
+- frontend 빌드 시 `nginx-aws.conf` 자동 적용 (정적 서빙만, 프록시 없음)
+- 사전 조건: AWS CLI v2 설치 + `aws configure` 완료 + ECR 리포지토리 생성
 
 ## 설계 결정 (Decision Log)
 
@@ -144,6 +158,8 @@ curl http://localhost/actuator/health
 | open-in-view: false | Service 계층에서 데이터 로딩 강제 |
 | nginx 설정 2개 (로컬/AWS) | 로컬: API 프록시 포함, AWS: 정적 서빙만 |
 | JVM -Xmx512m / 컨테이너 768MB | 힙 외 JVM 오버헤드 고려, OOM Kill 방지 |
+| Graceful Shutdown + exec | ECS 배포 시 진행 중 요청 완료 보장, SIGTERM 직접 수신 |
+| prod JSON 로그 (내장 structured) | CloudWatch Logs Insights 쿼리 가능, 추가 라이브러리 불필요 |
 | TG target type = IP | awsvpc에서 Task가 자체 ENI/IP를 받으므로 필수 |
 | SSM Parameter Store | 무료, 학습/PoC 용도 |
 | NAT 1개 (단일 AZ) | 비용 최적화, 학습 목적에서 가용성 트레이드오프 허용 |
@@ -193,6 +209,8 @@ task-flow/
 │   ├── nginx-aws.conf              # AWS용 (정적 서빙만)
 │   ├── package.json
 │   └── src/                        # React 애플리케이션
+├── scripts/
+│   └── ecr-push.sh                # ECR 이미지 빌드/푸시 자동화
 ├── CLAUDE.md                       # AI 코딩 가이드라인
 ├── DESIGN.md                       # 상세 설계서
 ├── TODO.md                         # 구현 체크리스트

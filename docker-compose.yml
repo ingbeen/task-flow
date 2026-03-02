@@ -12,6 +12,7 @@ services:
   backend:
     build:
       context: ./backend
+    stop_grace_period: 35s
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - DB_HOST=db

@@ -48,6 +48,9 @@ docker run --name taskboard-db \
   -e MYSQL_USER=taskboard \
   -e MYSQL_PASSWORD=taskboard \
   -p 3306:3306 -d mysql:8.0
+
+# ECR 이미지 빌드 및 푸시 (AWS 배포 시)
+./scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]
 ```
 
 ## Architecture
@@ -110,6 +113,9 @@ backend/src/main/java/com/taskflow/
 | AWS: NAT 1개 (단일 AZ)                     | 비용 최적화 (~$33/월), 학습 목적에서 가용성 트레이드오프 허용 |
 | AWS: TG target type = IP                   | awsvpc 모드 필수 (Task가 자체 ENI/IP)                         |
 | SSM Parameter Store (Secrets Manager 대신) | 무료, 학습/PoC 용도                                           |
+| Graceful Shutdown 명시 (기본값이지만)      | ECS 배포 시 진행 중 요청 완료 보장, ENTRYPOINT exec로 SIGTERM 전달 |
+| prod JSON 로그 (내장 structured logging)   | CloudWatch Logs Insights 쿼리 가능, 추가 라이브러리 불필요   |
+| dev health show-details=always             | DB 연결 상태 즉시 확인, 디버깅 용이                           |
 
 ## API Endpoints
 
@@ -154,6 +160,8 @@ backend/src/main/java/com/taskflow/
   - 표준 에러 응답: `ErrorResponse` (status, code, message, fieldErrors, timestamp)
   - 404 `NOT_FOUND`, 400 `VALIDATION_FAILED` / `INVALID_REQUEST_BODY` / `TYPE_MISMATCH`, 500 `INTERNAL_ERROR`
 - 요청 로깅: `RequestLoggingFilter` (`OncePerRequestFilter`) — method, URI, status, latency 기록, Actuator 경로 제외
+  - SLF4J fluent API `addKeyValue()`로 구조화된 JSON 필드 출력 (prod에서 CloudWatch Logs Insights 쿼리 가능)
+  - dev: 텍스트 로그 (가독성), prod: JSON 로그 (`logging.structured.format.console=logstash`)
 
 ### 문서화
 

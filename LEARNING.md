@@ -60,22 +60,25 @@
 spring:
   profiles:
     active: dev                          # ① 기본 프로필
+  lifecycle:
+    timeout-per-shutdown-phase: 30s      # ② 종료 대기 시간
   jpa:
-    open-in-view: false                  # ② OSIV 비활성화
+    open-in-view: false                  # ③ OSIV 비활성화
     hibernate:
-      ddl-auto: validate                 # ③ 스키마 검증만
+      ddl-auto: validate                 # ④ 스키마 검증만
   flyway:
-    enabled: true                        # ④ Flyway 활성화
-    locations: classpath:db/migration    # ⑤ 마이그레이션 파일 경로
+    enabled: true                        # ⑤ Flyway 활성화
+    locations: classpath:db/migration    # ⑥ 마이그레이션 파일 경로
 
 server:
-  port: 8080                             # ⑥ 서버 포트
+  port: 8080                             # ⑦ 서버 포트
+  shutdown: graceful                     # ⑧ Graceful Shutdown
 
 management:
   endpoints:
     web:
       exposure:
-        include: health                  # ⑦ Actuator 노출 범위
+        include: health                  # ⑨ Actuator 노출 범위
 ```
 
 **각 설정의 영향**:
@@ -83,12 +86,20 @@ management:
 | # | 설정 | 영향 |
 |---|------|------|
 | ① | `active: dev` | 환경변수 `SPRING_PROFILES_ACTIVE`가 없으면 dev 프로필 사용 |
-| ② | `open-in-view: false` | Controller에서 Lazy Loading 불가 → Service에서 모든 데이터를 미리 로딩해야 함 |
-| ③ | `ddl-auto: validate` | Hibernate가 스키마를 변경하지 않고, Entity와 DB 테이블이 불일치하면 앱 시작 실패 |
-| ④ | `flyway.enabled: true` | 앱 시작 시 `db/migration/` SQL 파일을 순서대로 실행 |
-| ⑤ | `locations` | V1, V2... SQL 파일을 찾는 디렉토리 경로 |
-| ⑥ | `port: 8080` | Spring Boot가 8080 포트에서 HTTP 요청을 수신 |
-| ⑦ | `include: health` | `/actuator/health`만 외부 노출. env, beans 등은 노출 안 됨 |
+| ② | `timeout-per-shutdown-phase: 30s` | SIGTERM 수신 후 진행 중 요청을 완료할 때까지 최대 30초 대기 |
+| ③ | `open-in-view: false` | Controller에서 Lazy Loading 불가 → Service에서 모든 데이터를 미리 로딩해야 함 |
+| ④ | `ddl-auto: validate` | Hibernate가 스키마를 변경하지 않고, Entity와 DB 테이블이 불일치하면 앱 시작 실패 |
+| ⑤ | `flyway.enabled: true` | 앱 시작 시 `db/migration/` SQL 파일을 순서대로 실행 |
+| ⑥ | `locations` | V1, V2... SQL 파일을 찾는 디렉토리 경로 |
+| ⑦ | `port: 8080` | Spring Boot가 8080 포트에서 HTTP 요청을 수신 |
+| ⑧ | `shutdown: graceful` | 새 요청 거부 + 진행 중 요청 완료 후 종료 (Spring Boot 3.4+ 기본값이지만 명시) |
+| ⑨ | `include: health` | `/actuator/health`만 외부 노출. env, beans 등은 노출 안 됨 |
+
+> **⑧ graceful shutdown이란?**
+> SIGTERM을 받으면 즉시 종료하지 않고, 진행 중인 요청을 완료한 후 종료한다.
+> ECS 배포 시 Task 교체 과정에서 502 에러를 줄여준다.
+> Docker의 `stop_grace_period`(35s)가 Spring의 shutdown timeout(30s)보다 길어야 한다.
+> Dockerfile ENTRYPOINT에 `exec`를 사용하여 java가 PID 1이 되어야 SIGTERM이 전달된다.
 
 > **② open-in-view: false가 없으면?**
 > 기본값은 `true`. Controller에서 Entity의 Lazy 필드에 접근할 수 있지만,
@@ -119,7 +130,20 @@ logging:
     "[org.springframework.web]": DEBUG   # Spring 내부 로그
     "[org.hibernate.SQL]": DEBUG         # 실행되는 SQL 쿼리
     "[org.hibernate.orm.jdbc.bind]": TRACE  # SQL 바인딩 파라미터
+
+management:
+  endpoint:
+    health:
+      show-details: always               # 헬스체크 상세 정보 표시
 ```
+
+> **show-details: always의 효과**:
+> `/actuator/health` 응답에 DB 연결 상태 등 상세 정보가 포함된다:
+> ```json
+> {"status":"UP","components":{"db":{"status":"UP","details":{"database":"MySQL"}}}}
+> ```
+> prod에서는 기본값 `never`로 `{"status":"UP"}`만 노출된다 (보안).
+> DB가 다운되면 어느 환경에서든 503을 반환하여 ALB 헬스체크가 실패한다.
 
 **핵심 차이 (dev vs prod)**:
 
@@ -127,7 +151,9 @@ logging:
 |------|-----|------|
 | DB 기본값 | `localhost:3306/taskboard` | **없음** (환경변수 필수) |
 | SSL | `useSSL=false` | `useSSL=true` |
-| 로깅 | DEBUG/TRACE (상세) | INFO/WARN (최소) |
+| 로깅 | DEBUG/TRACE (상세, 텍스트) | INFO/WARN (최소, **JSON**) |
+| 로그 포맷 | 텍스트 (기본) | `logstash` JSON (CloudWatch 호환) |
+| 헬스체크 상세 | `show-details: always` | `show-details: never` (기본) |
 | 실패 전략 | fail-safe (기본값으로 동작) | fail-fast (설정 누락 시 시작 실패) |
 
 > **왜 prod에는 기본값이 없는가?**
@@ -173,7 +199,15 @@ logging:
 ② RequestLoggingFilter (OncePerRequestFilter)
    - /actuator로 시작? → shouldNotFilter() = true → 로깅 건너뜀
    - /api로 시작? → 타이머 시작, filterChain.doFilter() 호출
-   - 요청 완료 후: "HTTP GET /api/tasks 200 15ms" 로그 기록
+   - 요청 완료 후:
+     log.atInfo()
+       .addKeyValue("http_method", "GET")
+       .addKeyValue("uri", "/api/tasks")
+       .addKeyValue("status", 200)
+       .addKeyValue("latency_ms", 15)
+       .log("HTTP GET /api/tasks 200 15ms")
+   - dev: 텍스트 출력 "HTTP GET /api/tasks 200 15ms"
+   - prod: JSON 출력 {"http_method":"GET","uri":"/api/tasks","status":200,"latency_ms":15,...}
 
 ③ DispatcherServlet (Spring 내부)
    - URL 패턴과 @RequestMapping 매칭
@@ -269,11 +303,19 @@ application.yml
   ├── ddl-auto: validate ───────────→ Task.java ↔ V1__init.sql 일치 검증
   ├── flyway.enabled: true ─────────→ V1, V2 SQL 파일 자동 실행
   ├── open-in-view: false ──────────→ Service에서 모든 데이터 로딩 강제
+  ├── shutdown: graceful ───────────→ SIGTERM 시 진행 중 요청 완료 후 종료
+  ├── timeout-per-shutdown-phase ───→ 종료 대기 최대 30초
   └── management.exposure ──────────→ /actuator/health만 외부 노출
 
 application-dev.yml
   ├── datasource.url ───────────────→ MySQL 연결 정보 (기본값: localhost)
-  └── logging.level ────────────────→ DEBUG 로그 출력 범위
+  ├── logging.level ────────────────→ DEBUG 로그 출력 범위
+  └── show-details: always ─────────→ 헬스체크에 DB 연결 상태 포함
+
+application-prod.yml
+  ├── datasource.url ───────────────→ RDS 연결 (환경변수 필수, 기본값 없음)
+  ├── logging.level ────────────────→ INFO/WARN 최소 로깅
+  └── structured.format.console ────→ logstash JSON 포맷 (CloudWatch 호환)
 ```
 
 ### 코드 간 호출 관계
@@ -751,6 +793,7 @@ services:
 
   backend:                               # Spring Boot API 서버
     build: ./backend                     # backend/Dockerfile 사용
+    stop_grace_period: 35s               # ★ graceful shutdown 대기 (Spring 30s + 여유 5s)
     environment:
       SPRING_PROFILES_ACTIVE: dev
       DB_HOST: db                        # docker-compose 서비스명 = DNS
@@ -770,6 +813,7 @@ services:
 | 설정 | 영향 |
 |------|------|
 | `ports: ["80:80"]` | frontend만 외부 노출. backend/db는 Docker 내부에서만 접근 |
+| `stop_grace_period: 35s` | `docker compose stop` 시 35초 대기 후 SIGKILL (Spring 종료 시간 보장) |
 | `depends_on: service_healthy` | MySQL이 준비될 때까지 backend가 대기 |
 | `DB_HOST: db` | Docker DNS로 컨테이너 간 통신 (IP 불필요) |
 | `volumes: [db-data]` | `docker compose down`해도 데이터 유지 (`-v` 옵션 시 삭제) |
@@ -828,8 +872,14 @@ FROM eclipse-temurin:17-jre
 COPY --from=builder app.jar .
 RUN adduser spring                     # 비root 사용자
 USER spring
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
 ```
+
+> **exec가 중요한 이유**:
+> `sh -c "java ..."` → java는 sh의 **자식 프로세스** (PID 1 = sh)
+> `sh -c "exec java ..."` → java가 sh를 **대체** (PID 1 = java)
+> Docker는 SIGTERM을 PID 1에게만 보내므로, `exec` 없이는 java가 SIGTERM을 받지 못한다.
+> 결과: graceful shutdown이 동작하지 않고 30초 후 SIGKILL로 강제 종료된다.
 
 **backend/Dockerfile.dev (개발)**:
 ```dockerfile
@@ -874,14 +924,26 @@ COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 backend/.dockerignore:     frontend/.dockerignore:
   .gradle/                   node_modules/
   build/                     dist/
-  .idea/                     .git/
-  .vscode/                   .vscode/
+  .idea/                     .vscode/
+  *.iml                      *.md
+  .vscode/                   Dockerfile*
+  src/test/                  .dockerignore
+  *.md                       .git/
+  Dockerfile*                .gitignore
+  .dockerignore
   .git/
+  .gitignore
 ```
 
 > Docker 빌드 시 `COPY . .`가 실행되면 현재 디렉토리의 모든 파일을 복사한다.
 > `.dockerignore`에 명시된 파일은 복사에서 제외되어 빌드 속도가 빨라지고
 > 불필요한 파일이 이미지에 포함되지 않는다.
+>
+> **주요 제외 항목**:
+> - `src/test/` (backend): `bootJar -x test`로 테스트를 건너뛰므로 불필요
+> - `Dockerfile*`: 빌드 컨텍스트에 Dockerfile 자체가 포함될 필요 없음
+> - `*.md`: 런타임에 불필요한 문서 파일
+> - `nginx-*.conf`는 제외하면 안 됨: frontend Dockerfile에서 `COPY ${NGINX_CONF}`로 사용
 
 ---
 
@@ -977,7 +1039,18 @@ docker-compose.yml
   │
   └── 네트워크: default (자동 생성)
         └── frontend ↔ backend ↔ db (서비스명으로 통신)
+
+scripts/ecr-push.sh (ECR 푸시 자동화)
+  ├── aws ecr get-login-password → Docker 로그인
+  ├── docker build ./backend → taskboard-backend:${GIT_HASH}
+  ├── docker build --build-arg NGINX_CONF=nginx-aws.conf ./frontend
+  │     └── nginx-aws.conf 사용 (정적 서빙만, 프록시 없음)
+  └── docker push → ECR 리포지토리
 ```
+
+> **ECR 푸시 스크립트가 frontend 빌드 시 `nginx-aws.conf`를 지정하는 이유**:
+> AWS에서는 ALB가 API 라우팅을 담당하므로 nginx에 프록시 설정이 없어야 한다.
+> 로컬 docker-compose에서는 기본값 `nginx-local.conf`가 사용된다.
 
 ### 개발 모드 파일 연결
 

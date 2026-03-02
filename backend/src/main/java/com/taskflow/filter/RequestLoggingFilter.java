@@ -32,11 +32,16 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;
-            log.info("HTTP {} {} {} {}ms",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    response.getStatus(),
-                    duration);
+            log.atInfo()
+                    .addKeyValue("http_method", request.getMethod())
+                    .addKeyValue("uri", request.getRequestURI())
+                    .addKeyValue("status", response.getStatus())
+                    .addKeyValue("latency_ms", duration)
+                    .log("HTTP {} {} {} {}ms",
+                            request.getMethod(),
+                            request.getRequestURI(),
+                            response.getStatus(),
+                            duration);
         }
     }
 

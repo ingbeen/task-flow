@@ -15,6 +15,9 @@ logging:
   level:
     "[com.taskflow]": INFO
     root: WARN
+  structured:
+    format:
+      console: logstash
 
 management:
   endpoints:
