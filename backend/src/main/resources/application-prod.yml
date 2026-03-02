@@ -13,7 +13,7 @@ spring:
 
 logging:
   level:
-    com.taskflow: INFO
+    "[com.taskflow]": INFO
     root: WARN
 
 management:

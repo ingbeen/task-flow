@@ -8,15 +8,14 @@ spring:
   jpa:
     show-sql: true
     properties:
-      hibernate:
-        format_sql: true
+      "[hibernate.format_sql]": true
 
   flyway:
     enabled: true
 
 logging:
   level:
-    com.taskflow: DEBUG
-    org.springframework.web: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+    "[com.taskflow]": DEBUG
+    "[org.springframework.web]": DEBUG
+    "[org.hibernate.SQL]": DEBUG
+    "[org.hibernate.orm.jdbc.bind]": TRACE
