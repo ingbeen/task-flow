@@ -14,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +56,7 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse updateTask(Long id, TaskUpdateRequest request) {
+    public TaskResponse updateTask(@NonNull Long id, TaskUpdateRequest request) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
 
@@ -70,13 +71,14 @@ public class TaskService {
     }
 
     @Transactional
-    public void deleteTask(Long id) {
+    public void deleteTask(@NonNull Long id) {
         if (!taskRepository.existsById(id)) {
             throw new TaskNotFoundException(id);
         }
         taskRepository.deleteById(id);
     }
 
+    @NonNull
     private Sort parseSortParameter(String sort) {
         if (sort == null || sort.isBlank()) {
             return Sort.by(Sort.Direction.DESC, "createdAt");
