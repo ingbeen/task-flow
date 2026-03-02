@@ -13,7 +13,7 @@ Task Board 애플리케이션 (TODO/DOING/DONE). React + Spring Boot + MySQL 구
 ## Implementation Progress
 
 - **Phase 1 (백엔드)**: 완료 (1-1 ~ 1-9 전체)
-- **Phase 2 (프론트엔드)**: 미시작
+- **Phase 2 (프론트엔드)**: 완료 (2-1 ~ 2-6 전체)
 - **Phase 3 (Docker/통합)**: 미시작
 - **Phase 4 (문서)**: 미시작
 

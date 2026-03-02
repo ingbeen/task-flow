@@ -72,45 +72,45 @@
 
 ### 2-1. 프로젝트 초기화
 
-- [ ] Vite + React + TypeScript 프로젝트 생성
-- [ ] Tailwind CSS 설정
-- [ ] Headless UI 설치
-- [ ] `vite.config.ts` — 개발 서버 프록시 설정 (`/api` → `http://localhost:8080`, `/actuator` → `http://localhost:8080`)
-- [ ] `.gitignore` 설정
+- [x] Vite + React + TypeScript 프로젝트 생성
+- [x] Tailwind CSS 설정
+- [x] Headless UI 설치
+- [x] `vite.config.ts` — 개발 서버 프록시 설정 (`/api` → `http://localhost:8080`, `/actuator` → `http://localhost:8080`)
+- [x] `.gitignore` 설정
 
 ### 2-2. 라우팅
 
-- [ ] React Router 설정
-- [ ] `/` → `/tasks` 리다이렉트
-- [ ] `/tasks` — 메인 페이지
+- [x] React Router 설정
+- [x] `/` → `/tasks` 리다이렉트
+- [x] `/tasks` — 메인 페이지
 
 ### 2-3. API 클라이언트
 
-- [ ] API 호출 모듈 (`/api/...` 상대경로 사용)
+- [x] API 호출 모듈 (`/api/...` 상대경로 사용)
   - _AWS 확장 대비: 환경별 URL 차이 없음, 항상 상대경로_
-- [ ] 에러 처리 공통 로직
+- [x] 에러 처리 공통 로직
 
 ### 2-4. 컴포넌트 구현
 
-- [ ] `TaskPage` — 메인 레이아웃 (Toolbar + List + Pagination)
-- [ ] `TaskToolbar` — 검색(q), status 필터, priority 필터, 정렬 선택, "New Task" 버튼
-- [ ] `TaskList` — Task 카드 목록
-- [ ] `TaskCard` — 개별 Task 표시 (title, status, priority, dueDate 등)
-- [ ] `TaskModal` — Headless UI Dialog, 생성/수정 공용
-- [ ] `Pagination` — page/size 기반 페이지 네비게이션
+- [x] `TaskPage` — 메인 레이아웃 (Toolbar + List + Pagination)
+- [x] `TaskToolbar` — 검색(q), status 필터, priority 필터, 정렬 선택, "New Task" 버튼
+- [x] `TaskList` — Task 카드 목록
+- [x] `TaskCard` — 개별 Task 표시 (title, status, priority, dueDate 등)
+- [x] `TaskModal` — Headless UI Dialog, 생성/수정 공용
+- [x] `Pagination` — page/size 기반 페이지 네비게이션
 
 ### 2-5. 상태 관리 및 연동
 
-- [ ] Task 목록 조회 (필터/검색/정렬/페이징 파라미터 연동)
-- [ ] Task 생성 → 목록 갱신
-- [ ] Task 수정 → 목록 갱신
-- [ ] Task 삭제 → 목록 갱신
+- [x] Task 목록 조회 (필터/검색/정렬/페이징 파라미터 연동)
+- [x] Task 생성 → 목록 갱신
+- [x] Task 수정 → 목록 갱신
+- [x] Task 삭제 → 목록 갱신
 
 ### 2-6. 스타일링
 
-- [ ] Tailwind CSS 기반 반응형 레이아웃
-- [ ] 상태별 색상 구분 (TODO/DOING/DONE)
-- [ ] 우선순위별 시각적 표시 (LOW/MEDIUM/HIGH)
+- [x] Tailwind CSS 기반 반응형 레이아웃
+- [x] 상태별 색상 구분 (TODO/DOING/DONE)
+- [x] 우선순위별 시각적 표시 (LOW/MEDIUM/HIGH)
 
 ---
 
