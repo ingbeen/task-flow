@@ -1,0 +1,15 @@
+FROM eclipse-temurin:17-jdk
+
+# 소스 변경 감지용 inotify-tools 설치
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends inotify-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Gradle wrapper + 의존성 사전 다운로드 (캐시: /root/.gradle/, bind mount 영향 없음)
+COPY gradlew settings.gradle build.gradle ./
+COPY gradle/ gradle/
+RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
+
+EXPOSE 8080
