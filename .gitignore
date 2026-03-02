@@ -38,6 +38,9 @@
 # === Node / Frontend ===
 node_modules/
 dist/
+dist-ssr/
+*.local
+*.log
 
 # === 환경변수 / 비밀값 ===
 .env
