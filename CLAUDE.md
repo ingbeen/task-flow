@@ -12,7 +12,7 @@ Task Board 애플리케이션 (TODO/DOING/DONE). React + Spring Boot + MySQL 구
 
 ## Implementation Progress
 
-- **Phase 1 (백엔드)**: 1-1 ~ 1-6 완료 (CRUD API 동작), 1-9 완료 (Actuator). 1-7 예외처리, 1-8 로깅 필터 미완료
+- **Phase 1 (백엔드)**: 완료 (1-1 ~ 1-9 전체)
 - **Phase 2 (프론트엔드)**: 미시작
 - **Phase 3 (Docker/통합)**: 미시작
 - **Phase 4 (문서)**: 미시작
@@ -86,7 +86,9 @@ backend/src/main/java/com/taskflow/
 ├── service/TaskService.java         # 비즈니스 로직, @Transactional
 ├── repository/TaskRepository.java   # JpaRepository + @Query 필터/검색
 ├── entity/                          # Task.java, TaskStatus enum, TaskPriority enum
-└── dto/                             # Request/Response DTOs, PageResponse<T>
+├── dto/                             # Request/Response DTOs, PageResponse<T>, ErrorResponse
+├── exception/                       # TaskNotFoundException, GlobalExceptionHandler
+└── filter/                          # RequestLoggingFilter
 ```
 
 ## Key Design Decisions
@@ -146,7 +148,10 @@ backend/src/main/java/com/taskflow/
 - 생성자 주입: `@RequiredArgsConstructor` + `private final` 필드
 - Validation: Create → @NotBlank title만 필수 / Update → title, status, priority 모두 필수
 - API 호출은 항상 상대경로 `/api/...` (환경 차이 없음)
-- 예외 처리: 현재 RuntimeException (1-7에서 GlobalExceptionHandler로 교체 예정)
+- 예외 처리: `GlobalExceptionHandler` (`@RestControllerAdvice`) + `TaskNotFoundException`
+  - 표준 에러 응답: `ErrorResponse` (status, code, message, fieldErrors, timestamp)
+  - 404 `NOT_FOUND`, 400 `VALIDATION_FAILED` / `INVALID_REQUEST_BODY` / `TYPE_MISMATCH`, 500 `INTERNAL_ERROR`
+- 요청 로깅: `RequestLoggingFilter` (`OncePerRequestFilter`) — method, URI, status, latency 기록, Actuator 경로 제외
 
 ### 문서화
 

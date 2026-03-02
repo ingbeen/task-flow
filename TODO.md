@@ -52,12 +52,12 @@
 
 ### 1-7. 예외 처리
 
-- [ ] `GlobalExceptionHandler` (`@RestControllerAdvice`)
-- [ ] 404 Not Found, 400 Bad Request 등 표준 에러 응답 포맷
+- [x] `GlobalExceptionHandler` (`@RestControllerAdvice`)
+- [x] 404 Not Found, 400 Bad Request 등 표준 에러 응답 포맷
 
 ### 1-8. Request Logging Filter
 
-- [ ] 요청 로깅 필터 구현 (method, path, status, latency)
+- [x] 요청 로깅 필터 구현 (method, path, status, latency)
   - _AWS 확장 대비: CloudWatch Logs에서 추적 가능한 구조화된 로그_
 
 ### 1-9. Actuator 설정

@@ -7,6 +7,7 @@ import com.taskflow.dto.TaskUpdateRequest;
 import com.taskflow.entity.Task;
 import com.taskflow.entity.TaskPriority;
 import com.taskflow.entity.TaskStatus;
+import com.taskflow.exception.TaskNotFoundException;
 import com.taskflow.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -56,7 +57,7 @@ public class TaskService {
     @Transactional
     public TaskResponse updateTask(Long id, TaskUpdateRequest request) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task not found: " + id));
+                .orElseThrow(() -> new TaskNotFoundException(id));
 
         task.setTitle(request.getTitle());
         task.setDescription(request.getDescription());
@@ -71,7 +72,7 @@ public class TaskService {
     @Transactional
     public void deleteTask(Long id) {
         if (!taskRepository.existsById(id)) {
-            throw new RuntimeException("Task not found: " + id);
+            throw new TaskNotFoundException(id);
         }
         taskRepository.deleteById(id);
     }
