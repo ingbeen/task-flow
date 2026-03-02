@@ -118,37 +118,37 @@
 
 ### 3-1. 백엔드 Dockerfile
 
-- [ ] Multi-stage build (Gradle build → JRE 실행)
-- [ ] JVM 옵션: `-Xms256m -Xmx512m`
+- [x] Multi-stage build (Gradle build → JRE 실행)
+- [x] JVM 옵션: `-Xms256m -Xmx512m`
   - _AWS 확장 대비: ECS Task Definition memory 768MB에 맞춘 설정_
 
 ### 3-2. 프론트엔드 Dockerfile
 
-- [ ] Multi-stage build (Node build → nginx 정적 서빙)
-- [ ] nginx.conf 포함
+- [x] Multi-stage build (Node build → nginx 정적 서빙)
+- [x] nginx.conf 포함
 
 ### 3-3. nginx 설정
 
-- [ ] 로컬용 `nginx.conf` — 정적 서빙 + SPA fallback + `/api` & `/actuator` 프록시
-- [ ] AWS용 `nginx.conf` — 정적 서빙 + SPA fallback만 (프록시 없음)
+- [x] 로컬용 `nginx.conf` — 정적 서빙 + SPA fallback + `/api` & `/actuator` 프록시
+- [x] AWS용 `nginx.conf` — 정적 서빙 + SPA fallback만 (프록시 없음)
   - _AWS 확장 대비: 환경별 nginx 설정 파일 분리_
 
 ### 3-4. docker-compose.yml
 
-- [ ] `frontend` 서비스 (nginx, port 80)
-- [ ] `backend` 서비스 (Spring Boot, port 8080)
-- [ ] `db` 서비스 (MySQL)
-- [ ] 환경변수 설정 (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, SPRING_PROFILES_ACTIVE=dev)
-- [ ] 서비스 간 의존성 설정 (backend → db, frontend → backend)
-- [ ] `docker compose up` 한 번으로 전체 동작 확인
+- [x] `frontend` 서비스 (nginx, port 80)
+- [x] `backend` 서비스 (Spring Boot, port 8080)
+- [x] `db` 서비스 (MySQL)
+- [x] 환경변수 설정 (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, SPRING_PROFILES_ACTIVE=dev)
+- [x] 서비스 간 의존성 설정 (backend → db, frontend → backend)
+- [x] `docker compose up` 한 번으로 전체 동작 확인
 
 ### 3-5. 통합 테스트 (수동)
 
-- [ ] `http://localhost/` — React UI 정상 로딩
-- [ ] `http://localhost/api/tasks` — API 응답 확인
-- [ ] `http://localhost/actuator/health` — `{"status":"UP"}` 확인
-- [ ] CRUD 전체 흐름 테스트 (생성 → 조회 → 수정 → 삭제)
-- [ ] 필터/검색/정렬/페이징 동작 확인
+- [x] `http://localhost/` — React UI 정상 로딩
+- [x] `http://localhost/api/tasks` — API 응답 확인
+- [x] `http://localhost/actuator/health` — `{"status":"UP"}` 확인
+- [x] CRUD 전체 흐름 테스트 (생성 → 조회 → 수정 → 삭제)
+- [x] 필터/검색/정렬/페이징 동작 확인
 
 ---
 
@@ -156,12 +156,12 @@
 
 ### 4-1. README.md
 
-- [ ] 로컬 실행 방법 (`docker compose up`, 접속 URL, health 확인)
-- [ ] API 예시 (curl 등)
-- [ ] 아키텍처 다이어그램 (로컬 기준)
-- [ ] AWS 아키텍처 다이어그램 (DESIGN.md 참조)
-- [ ] 설계 결정 기록 (Decision Log)
-- [ ] 트러블슈팅 가이드
+- [x] 로컬 실행 방법 (`docker compose up`, 접속 URL, health 확인)
+- [x] API 예시 (curl 등)
+- [x] 아키텍처 다이어그램 (로컬 기준)
+- [x] AWS 아키텍처 다이어그램 (DESIGN.md 참조)
+- [x] 설계 결정 기록 (Decision Log)
+- [x] 트러블슈팅 가이드
 
 ---
 
