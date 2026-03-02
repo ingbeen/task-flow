@@ -10,8 +10,8 @@ React + Spring Boot + MySQL 구성, Docker Compose로 로컬 실행.
 
 | 계층 | 기술 |
 |------|------|
-| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS 4, Headless UI |
-| Backend | Java 17 (Temurin), Spring Boot 3.5, JPA, Flyway |
+| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS 4, Headless UI, React Router 7 |
+| Backend | Java 17 (Temurin), Spring Boot 3.5.11, JPA, Flyway |
 | Database | MySQL 8.0 |
 | Infra | Docker, nginx, docker-compose |
 
@@ -19,7 +19,7 @@ React + Spring Boot + MySQL 구성, Docker Compose로 로컬 실행.
 
 ### 사전 조건
 
-- Docker Engine (Docker Desktop 또는 WSL2 Docker)
+- Docker Engine (WSL2 Docker 또는 Docker Desktop)
 
 ### 시작
 

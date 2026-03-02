@@ -29,7 +29,7 @@
 
 ### 백엔드(Spring Boot)
 
-- Java 17 + Spring Boot 3.x + Spring Data JPA
+- Java 17 + Spring Boot 3.5.11 + Spring Data JPA
 - Spring profiles(dev/prod) 분리
 - 헬스체크: **Spring Actuator `/actuator/health`** (Actuator는 `/api` 하위가 아닌 독립 경로)
 - Actuator 노출 제한: `management.endpoints.web.exposure.include=health` (prod)
@@ -104,37 +104,11 @@
 
 ### 2.3 nginx 설정 (로컬용)
 
-```nginx
-server {
-    listen 80;
-    server_name _;
+구현 완료: `frontend/nginx-local.conf` 참조
 
-    # React 정적 파일 + SPA fallback
-    location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API 프록시 (로컬: 서비스명으로 통신)
-    location /api/ {
-        proxy_pass http://backend:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Actuator 프록시 (헬스체크 등 운영 엔드포인트)
-    location /actuator/ {
-        proxy_pass http://backend:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
+- React 정적 파일 + SPA fallback (`try_files`)
+- `/api/` → `proxy_pass http://backend:8080`
+- `/actuator/` → `proxy_pass http://backend:8080`
 
 ### 2.4 실행 요구사항
 
@@ -152,18 +126,7 @@ server {
 ### 2.6 CORS
 
 - docker-compose: nginx 경유 = 같은 origin → **CORS 이슈 없음**
-- Vite dev server 직접 사용 시: `vite.config.ts`에서 `/api` 프록시 설정
-
-```typescript
-export default defineConfig({
-  server: {
-    proxy: {
-      "/api": "http://localhost:8080",
-      "/actuator": "http://localhost:8080",
-    },
-  },
-});
-```
+- Vite dev server 직접 사용 시: `frontend/vite.config.ts`에서 `/api`, `/actuator` 프록시 설정 (구현 완료)
 
 ### 2.7 Flyway 정책
 
@@ -298,22 +261,10 @@ RDS MySQL (private subnet)
 
 ### 3.8 nginx 설정 (AWS용)
 
-```nginx
-server {
-    listen 80;
-    server_name _;
+구현 완료: `frontend/nginx-aws.conf` 참조
 
-    # React 정적 파일 + SPA fallback (이것만)
-    location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
-> 로컬용 nginx.conf와 AWS용 nginx.conf가 다릅니다.
-> 환경변수 치환(nginx template) 또는 파일 2개 관리로 처리합니다.
+- React 정적 파일 + SPA fallback만 (API 프록시 없음)
+- 로컬용(`nginx-local.conf`)과 AWS용(`nginx-aws.conf`) 파일 2개로 분리 관리
 
 ### 3.9 헬스체크 (최종 확정)
 
@@ -451,13 +402,7 @@ maximumPercent = 100
 
 **Actuator 노출 제한 (prod 프로필):**
 
-```yaml
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health
-```
+구현 완료: `backend/src/main/resources/application.yml` 및 `application-prod.yml` 참조
 
 **Profiles:**
 

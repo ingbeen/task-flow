@@ -14,15 +14,17 @@ Task Board 애플리케이션 (TODO/DOING/DONE). React + Spring Boot + MySQL 구
 
 - **Phase 1 (백엔드)**: 완료 (1-1 ~ 1-9 전체)
 - **Phase 2 (프론트엔드)**: 완료 (2-1 ~ 2-6 전체)
-- **Phase 3 (Docker/통합)**: 미시작
-- **Phase 4 (문서)**: 미시작
+- **Phase 3 (Docker/통합)**: 완료 (3-1 ~ 3-5 전체)
+- **Phase 4 (문서)**: 완료 (4-1)
+
+구현 체크리스트 및 향후 계획은 TODO.md 참조.
 
 ## Tech Stack
 
 - **Backend**: Java 17 (Temurin via SDKMAN), Spring Boot 3.5.11, Gradle (Groovy DSL), Lombok
-- **Frontend**: (예정) Vite + React + TypeScript + Tailwind CSS + Headless UI
+- **Frontend**: Vite 7, React 19, TypeScript 5.9, Tailwind CSS 4, Headless UI 2, React Router 7
 - **DB**: MySQL 8.0, Flyway 마이그레이션, JPA Auditing
-- **Infra**: Docker Engine on WSL2 (not Docker Desktop)
+- **Infra**: Docker, nginx, docker-compose (개발 환경: WSL2 Ubuntu 24.04)
 
 ## Build & Run Commands
 
@@ -50,7 +52,7 @@ docker run --name taskboard-db \
 
 ## Architecture
 
-### 로컬 (docker-compose, 목표)
+### 로컬 (docker-compose)
 
 ```
 브라우저 → nginx(:80)
@@ -61,7 +63,7 @@ docker run --name taskboard-db \
                                          MySQL(:3306)
 ```
 
-### AWS (ECS, 목표)
+### AWS (ECS, 향후 목표)
 
 ```
 인터넷 → ALB (public subnet)
@@ -161,7 +163,7 @@ backend/src/main/java/com/taskflow/
 - 한글 작성 허용
 - 복잡한 로직은 넘버링 주석 사용 (예: `// 1. 상태 검증`, `// 2. 엔티티 변환`)
 
-**Frontend (TypeScript, 예정)**:
+**Frontend (TypeScript)**:
 
 - JSDoc 사용: 컴포넌트, 유틸 함수, 커스텀 훅에 JSDoc 작성
 - 한글 작성 허용
@@ -181,7 +183,7 @@ backend/src/main/java/com/taskflow/
 - 클래스/인터페이스: `PascalCase`
 - 상수: `UPPER_SNAKE_CASE`
 
-**Frontend (TypeScript, 예정)**:
+**Frontend (TypeScript)**:
 
 - 함수/변수: `camelCase`
 - 컴포넌트/인터페이스/타입: `PascalCase`
@@ -195,7 +197,7 @@ backend/src/main/java/com/taskflow/
 - Enum은 반드시 `@Enumerated(EnumType.STRING)` 사용
 - null 가능 필드는 주석으로 명시 (예: `// null 허용 (필드 삭제 가능)`)
 
-**Frontend (TypeScript, 예정)**:
+**Frontend (TypeScript)**:
 
 - `any` 타입 사용 금지
 - 모든 컴포넌트 props와 state에 타입/인터페이스 정의 필수
@@ -219,6 +221,6 @@ backend/src/main/java/com/taskflow/
 
 ## Environment Notes
 
-- WSL2 Ubuntu 24.04에서 개발
+- WSL2 Ubuntu 24.04에서 개발 (Docker Engine on WSL2, not Docker Desktop)
 - WSL2와 Windows가 포트 공간을 공유함 (Windows MySQL과 포트 충돌 주의)
 - Docker 그룹 미적용 시 `sg docker -c "..."` 사용 가능
