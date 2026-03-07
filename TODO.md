@@ -64,7 +64,7 @@
 
 - [x] `/actuator/health` 활성화 (독립 경로, `/api` 하위 아님)
 - [x] dev 프로필: 기본 노출
-- [x] prod 프로필: `management.endpoints.web.exposure.include=health`
+- [x] 공통 설정: `management.endpoints.web.exposure.include=health` (application.yml, dev/prod 모두 적용)
 
 ---
 
@@ -106,7 +106,12 @@
 - [x] Task 수정 → 목록 갱신
 - [x] Task 삭제 → 목록 갱신
 
-### 2-6. 스타일링
+### 2-6. 404 페이지
+
+- [x] `NotFoundPage` — 존재하지 않는 경로 접근 시 404 안내 페이지
+- [x] catch-all 라우트(`*`) 설정
+
+### 2-7. 스타일링
 
 - [x] Tailwind CSS 기반 반응형 레이아웃
 - [x] 상태별 색상 구분 (TODO/DOING/DONE)

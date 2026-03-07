@@ -214,5 +214,7 @@ task-flow/
 ├── CLAUDE.md                       # AI 코딩 가이드라인
 ├── DESIGN.md                       # 상세 설계서
 ├── TODO.md                         # 구현 체크리스트
+├── LEARNING.md                     # 학습 기록
+├── TESTING2.md                     # 운영 항목 수동 테스트 가이드
 └── README.md
 ```

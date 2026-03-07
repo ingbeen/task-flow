@@ -32,7 +32,7 @@
 - Java 17 + Spring Boot 3.5.11 + Spring Data JPA
 - Spring profiles(dev/prod) 분리
 - 헬스체크: **Spring Actuator `/actuator/health`** (Actuator는 `/api` 하위가 아닌 독립 경로)
-- Actuator 노출 제한: `management.endpoints.web.exposure.include=health` (prod)
+- Actuator 노출 제한: `management.endpoints.web.exposure.include=health` (공통 설정, dev/prod 모두 적용)
 - 로깅: request logging filter(method, path, status, latency), SLF4J fluent API `addKeyValue()`로 구조화된 필드 출력
 - 로그 포맷: **dev=텍스트(가독성)**, **prod=JSON(CloudWatch Logs Insights 호환)** — Spring Boot 3.4+ 내장 structured logging (`logstash` 포맷)
 - Graceful Shutdown: `server.shutdown=graceful`, `timeout-per-shutdown-phase=30s` (Spring Boot 3.4+ 기본값이지만 명시)
@@ -364,6 +364,7 @@ maximumPercent = 100
 
 - `/tasks`: 메인 페이지
 - `/`: `/tasks`로 redirect
+- `*`: 404 Not Found 페이지 (catch-all 라우트)
 
 **UI/컴포넌트:**
 
@@ -408,9 +409,9 @@ maximumPercent = 100
 - `/actuator/health` 활성화 (ALB 헬스체크 대상)
 - Actuator 경로는 `/api` 하위가 아닌 독립 경로 (Spring Boot 기본값 유지)
 
-**Actuator 노출 제한 (prod 프로필):**
+**Actuator 노출 제한 (공통 설정):**
 
-구현 완료: `backend/src/main/resources/application.yml` 및 `application-prod.yml` 참조
+구현 완료: `backend/src/main/resources/application.yml` 참조 (공통 설정으로 dev/prod 모두 적용)
 
 **Profiles:**
 
@@ -447,7 +448,7 @@ maximumPercent = 100
 
 ### backend Dockerfile (multi-stage)
 
-1. Gradle/Maven build
+1. Gradle build
 2. JRE 이미지로 실행
 3. JVM 옵션: `-Xms256m -Xmx512m`
 4. ENTRYPOINT에 `exec` 사용 — java가 PID 1이 되어 Docker SIGTERM을 직접 수신 (graceful shutdown 보장)
