@@ -440,10 +440,10 @@ git rev-parse --short HEAD
 
 ```bash
 # backend 이미지 빌드
-docker build -t taskboard-backend:test ./backend
+docker build -t taskflow/backend:test ./backend
 
 # frontend 이미지 빌드 (AWS용 nginx 설정)
-docker build --build-arg NGINX_CONF=nginx-aws.conf -t taskboard-frontend:test ./frontend
+docker build --build-arg NGINX_CONF=nginx-aws.conf -t taskflow/frontend:test ./frontend
 ```
 
 - [ ] backend 이미지 빌드가 성공하는가?
@@ -459,7 +459,7 @@ docker build --build-arg NGINX_CONF=nginx-aws.conf -t taskboard-frontend:test ./
 
 ```bash
 # AWS용 이미지에서 nginx 설정 확인
-docker run --rm taskboard-frontend:test cat /etc/nginx/conf.d/default.conf
+docker run --rm taskflow/frontend:test cat /etc/nginx/conf.d/default.conf
 ```
 
 - [ ] `proxy_pass` 설정이 **없는가?** (정적 서빙만)
@@ -467,7 +467,7 @@ docker run --rm taskboard-frontend:test cat /etc/nginx/conf.d/default.conf
 
 ```bash
 # 로컬용과 비교
-docker run --rm $(docker compose images frontend -q 2>/dev/null || echo "taskboard-frontend:test") cat /etc/nginx/conf.d/default.conf 2>/dev/null
+docker run --rm $(docker compose images frontend -q 2>/dev/null || echo "taskflow/frontend:test") cat /etc/nginx/conf.d/default.conf 2>/dev/null
 ```
 
 > **로컬 vs AWS nginx 설정 차이:**
@@ -481,7 +481,7 @@ docker run --rm $(docker compose images frontend -q 2>/dev/null || echo "taskboa
 ### 5-7. 테스트 이미지 정리
 
 ```bash
-docker rmi taskboard-backend:test taskboard-frontend:test 2>/dev/null
+docker rmi taskflow/backend:test taskflow/frontend:test 2>/dev/null
 ```
 
 ---

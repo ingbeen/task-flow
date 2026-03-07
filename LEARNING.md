@@ -1042,7 +1042,7 @@ docker-compose.yml
 
 scripts/ecr-push.sh (ECR 푸시 자동화)
   ├── aws ecr get-login-password → Docker 로그인
-  ├── docker build ./backend → taskboard-backend:${GIT_HASH}
+  ├── docker build ./backend → taskflow/backend:${GIT_HASH}
   ├── docker build --build-arg NGINX_CONF=nginx-aws.conf ./frontend
   │     └── nginx-aws.conf 사용 (정적 서빙만, 프록시 없음)
   └── docker push → ECR 리포지토리

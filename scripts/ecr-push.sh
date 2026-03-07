@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 #
 # ECR 이미지 빌드 및 푸시 스크립트
-# 프로젝트 루트에서 실행: ./scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]
+# 프로젝트 루트에서 실행: ./scripts/ecr-push.sh [AWS_REGION]
+# AWS Account ID는 aws sts get-caller-identity로 자동 감지
 #
 set -euo pipefail
 
 # ============================================================
 # 1. 파라미터 검증
 # ============================================================
-AWS_ACCOUNT_ID="${1:?사용법: $0 <AWS_ACCOUNT_ID> [AWS_REGION]}"
-AWS_REGION="${2:-ap-northeast-2}"
+AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" \
+  || { echo "ERROR: AWS 자격 증명을 확인할 수 없습니다. aws configure를 실행하세요." >&2; exit 1; }
+AWS_REGION="${1:-ap-northeast-2}"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
 IMAGE_TAG="$(git rev-parse --short HEAD 2>/dev/null || echo 'latest')"
 
-BACKEND_REPO="taskboard-backend"
-FRONTEND_REPO="taskboard-frontend"
+BACKEND_REPO="taskflow/backend"
+FRONTEND_REPO="taskflow/frontend"
 
 echo "============================================================"
 echo "ECR Push: registry=${ECR_REGISTRY}"

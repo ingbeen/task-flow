@@ -230,7 +230,7 @@ RDS MySQL (private subnet)
 
 | 항목               | Frontend                       | Backend                       |
 | ------------------ | ------------------------------ | ----------------------------- |
-| Task Definition    | `taskboard-frontend`           | `taskboard-backend`           |
+| Task Definition    | `taskflow/frontend`            | `taskflow/backend`            |
 | 컨테이너           | nginx (React 정적 서빙)        | Spring Boot API               |
 | 포트               | 80                             | 8080                          |
 | 메모리             | 128MB                          | 768MB (`-Xms256m -Xmx512m`)   |
@@ -339,8 +339,8 @@ maximumPercent = 100
 
 - ECS Task Definition에서 awslogs 드라이버 설정
 - 로그 그룹:
-  - `/ecs/taskboard-frontend` (nginx)
-  - `/ecs/taskboard-backend` (Spring Boot)
+  - `/ecs/taskflow/frontend` (nginx)
+  - `/ecs/taskflow/backend` (Spring Boot)
 - **prod 프로필에서 JSON 구조화 로그 출력** (`logging.structured.format.console=logstash`)
   - Spring Boot 3.4+ 내장 기능, 추가 라이브러리 불필요
   - CloudWatch Logs Insights에서 JSON 필드별 쿼리/필터링 가능
@@ -461,8 +461,8 @@ maximumPercent = 100
 
 ### AWS ECS Task Definitions
 
-- **taskboard-frontend**: nginx 컨테이너 (port 80, memory 128MB, 정적 서빙만)
-- **taskboard-backend**: Spring Boot 컨테이너 (port 8080, memory 768MB, JVM `-Xms256m -Xmx512m`)
+- **taskflow/frontend**: nginx 컨테이너 (port 80, memory 128MB, 정적 서빙만)
+- **taskflow/backend**: Spring Boot 컨테이너 (port 8080, memory 768MB, JVM `-Xms256m -Xmx512m`)
 - 각각 독립적인 Task Definition, 독립적인 Service
 
 > **핵심 차이: 로컬 vs AWS**
