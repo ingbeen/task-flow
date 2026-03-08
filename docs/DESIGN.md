@@ -65,7 +65,7 @@
 - 크레딧: **$100(가입) + $100(온보딩) = 최대 $200**
 - 예상 월 비용: **~$91** (t3.small $19 + ALB $20 + RDS $17 + NAT $33 + EBS $2)
 - 크레딧 지속: **약 2.2개월** (24/7 가동 기준)
-- **AWS Budgets $10 알림 필수 설정** (계정 생성 즉시)
+- **AWS Budgets 제로 지출 예산 필수 설정** (계정 생성 즉시)
 - 위 비용은 추정치이며, **AWS Pricing Calculator로 최종 확인 권장**
 - 특히 ALB는 시간+LCU 구조라 트래픽 증가 시 비용이 달라질 수 있음
 
@@ -220,24 +220,24 @@ RDS MySQL (private subnet)
 
 ### 3.5 Security Group (SG)
 
-| SG 이름  | 인바운드     | 소스                 |
-| -------- | ------------ | -------------------- |
-| `alb-sg` | TCP 80       | `0.0.0.0/0` (인터넷) |
-| `ecs-sg` | TCP 80, 8080 | `alb-sg` (ALB에서만) |
-| `rds-sg` | TCP 3306     | `ecs-sg` (ECS에서만) |
+| SG 이름            | 인바운드     | 소스                           |
+| ------------------ | ------------ | ------------------------------ |
+| `taskflow-alb-sg`  | TCP 80       | `0.0.0.0/0` (인터넷)          |
+| `taskflow-ecs-sg`  | TCP 80, 8080 | `taskflow-alb-sg` (ALB에서만)  |
+| `taskflow-rds-sg`  | TCP 3306     | `taskflow-ecs-sg` (ECS에서만)  |
 
 ### 3.6 ECS 구성 (2 Service 분리)
 
-| 항목               | Frontend                       | Backend                       |
-| ------------------ | ------------------------------ | ----------------------------- |
-| Task Definition    | `taskflow/frontend`            | `taskflow/backend`            |
-| 컨테이너           | nginx (React 정적 서빙)        | Spring Boot API               |
-| 포트               | 80                             | 8080                          |
-| 메모리             | 128MB                          | 768MB (`-Xms256m -Xmx512m`)   |
-| Service            | `frontend-service` (desired=1) | `backend-service` (desired=1) |
-| Target Group       | `frontend-tg` (port 80)        | `backend-tg` (port 8080)      |
-| **TG Target type** | **IP**                         | **IP**                        |
-| 헬스체크           | `/` (nginx 200)                | `/actuator/health` (ALB 직접) |
+| 항목               | Frontend                                | Backend                                 |
+| ------------------ | --------------------------------------- | --------------------------------------- |
+| Task Definition    | `taskflow-frontend`                     | `taskflow-backend`                      |
+| 컨테이너           | nginx (React 정적 서빙)                 | Spring Boot API                         |
+| 포트               | 80                                      | 8080                                    |
+| 메모리             | 256MB                                   | 768MB (`-Xms256m -Xmx512m`)             |
+| Service            | `taskflow-frontend-service` (desired=1) | `taskflow-backend-service` (desired=1)  |
+| Target Group       | `taskflow-frontend-tg` (port 80)        | `taskflow-backend-tg` (port 8080)       |
+| **TG Target type** | **IP**                                  | **IP**                                  |
+| 헬스체크           | `/` (nginx 200)                         | `/actuator/health` (ALB 직접)           |
 
 > **Target type = IP는 awsvpc 모드에서 필수입니다.**
 > awsvpc에서 Task는 자체 ENI/IP를 받으므로, TG가 IP 타겟으로 등록해야 합니다.
@@ -311,7 +311,7 @@ RDS MySQL (private subnet)
 **해결: 배포 파라미터 고정**
 
 ```
-# frontend-service, backend-service 모두 동일하게 설정
+# taskflow-frontend-service, taskflow-backend-service 모두 동일하게 설정
 minimumHealthyPercent = 0
 maximumPercent = 100
 ```
@@ -329,7 +329,7 @@ maximumPercent = 100
 
 ### 3.12 RDS (MySQL)
 
-- 인스턴스: **db.t3.micro** (크레딧 활용)
+- 인스턴스: **db.t4g.micro** (ARM/Graviton 기반, 크레딧 활용)
 - Public access: **No**
 - Subnet: Private subnet
 - SG: 3306 inbound = `ecs-sg` only
@@ -339,8 +339,8 @@ maximumPercent = 100
 
 - ECS Task Definition에서 awslogs 드라이버 설정
 - 로그 그룹:
-  - `/ecs/taskflow/frontend` (nginx)
-  - `/ecs/taskflow/backend` (Spring Boot)
+  - `/ecs/taskflow-frontend` (nginx)
+  - `/ecs/taskflow-backend` (Spring Boot)
 - **prod 프로필에서 JSON 구조화 로그 출력** (`logging.structured.format.console=logstash`)
   - Spring Boot 3.4+ 내장 기능, 추가 라이브러리 불필요
   - CloudWatch Logs Insights에서 JSON 필드별 쿼리/필터링 가능
@@ -461,8 +461,8 @@ maximumPercent = 100
 
 ### AWS ECS Task Definitions
 
-- **taskflow/frontend**: nginx 컨테이너 (port 80, memory 128MB, 정적 서빙만)
-- **taskflow/backend**: Spring Boot 컨테이너 (port 8080, memory 768MB, JVM `-Xms256m -Xmx512m`)
+- **taskflow-frontend**: nginx 컨테이너 (port 80, memory 256MB, 정적 서빙만)
+- **taskflow-backend**: Spring Boot 컨테이너 (port 8080, memory 768MB, JVM `-Xms256m -Xmx512m`)
 - 각각 독립적인 Task Definition, 독립적인 Service
 
 > **핵심 차이: 로컬 vs AWS**
@@ -487,7 +487,7 @@ maximumPercent = 100
 ### AWS 1단계: 수동 배포
 
 1. `docker build` → `docker tag` → `docker push` (ECR, 이미지 2개)
-   - 자동화 스크립트: `scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]`
+   - 자동화 스크립트: `scripts/ecr-push.sh [AWS_REGION]` (Account ID 자동 감지)
    - git short hash를 이미지 태그로 사용 (커밋 추적)
    - frontend 빌드 시 `NGINX_CONF=nginx-aws.conf` 자동 적용
 2. AWS 콘솔에서 ECS Service 업데이트 (새 Task Definition 반영)
@@ -500,49 +500,13 @@ maximumPercent = 100
 
 ---
 
-## 8) AWS 배포 체크리스트
-
-1. **AWS 계정 생성** (신규, $100 크레딧 수령)
-2. **AWS Budgets $10 알림 설정** (필수, 첫날에)
-3. **온보딩 활동** 수행하여 추가 $100 크레딧 확보
-4. VPC 구성
-   - Public subnet 2개 (ALB, NAT Gateway)
-   - Private subnet 2개 (EC2/ECS, RDS)
-   - **NAT Gateway 1개** (public subnet, 단일 AZ) + Elastic IP 할당
-   - 모든 Private subnet Route table: `0.0.0.0/0 → NAT Gateway`
-5. Security Group 생성 (alb-sg, ecs-sg, rds-sg)
-6. ECR repo 생성 (frontend, backend)
-7. 이미지 빌드 & 푸시
-8. ECS Cluster(EC2) 생성 + EC2 t3.small 1대 등록 (private subnet)
-9. SSM Parameter Store에 DB 접속 정보 등록
-10. Task Definition 2개 생성
-    - frontend: nginx, port 80, memory 128MB, awslogs
-    - backend: spring-boot, port 8080, memory 768MB, awslogs, JVM `-Xms256m -Xmx512m`
-11. ALB 생성 (internet-facing, public subnet) + **TG 2개 (Target type: IP)**
-    - frontend-tg: port 80, health check `/`
-    - backend-tg: port 8080, health check `/actuator/health`
-    - Listener rules: `/api/*` → backend-tg / `/actuator/*` → backend-tg / 기본 → frontend-tg
-12. ECS Service 2개 생성
-    - 각각 TG 연결, desired=1
-    - **배포 설정: minimumHealthyPercent=0, maximumPercent=100**
-13. RDS 생성 (db.t3.micro, private subnet, public access No)
-    - SG: 3306 from ecs-sg only
-14. 동작 확인
-    - `http://ALB_DNS/` 접속 → React UI
-    - `http://ALB_DNS/api/tasks` → API 응답
-    - `http://ALB_DNS/actuator/health` → `{"status":"UP"}`
-    - CloudWatch Logs 확인
-15. (선택) GitHub Actions CI/CD 추가
-
----
-
-## 9) 비용 상세 (서울 리전, 24/7 가동 기준)
+## 8) 비용 상세 (서울 리전, 24/7 가동 기준)
 
 | 리소스               | 월 비용 (추정) | 비고                             |
 | -------------------- | -------------- | -------------------------------- |
 | EC2 t3.small         | ~$19           | 시간당 $0.026                    |
 | ALB                  | ~$20           | 고정 ~$18.4 + LCU ~$1~2          |
-| RDS db.t3.micro      | ~$17           | 시간당 ~$0.023                   |
+| RDS db.t4g.micro     | ~$17           | 시간당 ~$0.023                   |
 | NAT Gateway (1개)    | ~$33           | 시간당 $0.045 + 데이터 $0.045/GB |
 | EBS 20GB (gp3)       | ~$2            |                                  |
 | **합계**             | **~$91/월**    |                                  |
@@ -553,90 +517,11 @@ maximumPercent = 100
 
 > **비용 폭탄 주의:**
 > NAT Gateway와 ALB는 "Stop" 개념이 없습니다. 존재하는 동안 시간당 과금됩니다.
-> 학습 종료 시 반드시 **삭제**해야 과금이 멈춥니다. (아래 체크리스트 참조)
+> 학습 종료 시 반드시 **삭제**해야 과금이 멈춥니다. (AWS_GUIDE.md 리소스 정리 참조)
 
 ---
 
-## 10) 리소스 정리 체크리스트 (학습 종료 시)
-
-> ⚠️ NAT Gateway, ALB는 Stop이 불가합니다. 과금을 멈추려면 삭제가 유일한 방법입니다.
-
-| 순서 | 리소스            | 조치                      | 주의사항                                       |
-| ---- | ----------------- | ------------------------- | ---------------------------------------------- |
-| 1    | ECS Service (2개) | desired=0 또는 삭제       | Task가 먼저 내려가야 함                        |
-| 2    | ALB               | **삭제**                  | Stop 없음. TG도 함께 삭제                      |
-| 3    | NAT Gateway       | **삭제**                  | Stop 없음. 삭제해도 EIP는 남아있음             |
-| 4    | Elastic IP        | **반납 (Release)**        | NAT 삭제 후 반드시 별도 반납                   |
-| 5    | Route Table       | NAT 경로 확인/삭제        | 자동 삭제 안 될 수 있음                        |
-| 6    | RDS               | Stop (최대 7일) 또는 삭제 | 7일 후 자동 재시작됨. 장기 미사용 시 삭제 권장 |
-| 7    | EC2 인스턴스      | Stop 또는 Terminate       | Stop 시 EBS 비용은 유지됨                      |
-| 8    | ECR 이미지        | 불필요한 이미지 삭제      | 500MB 초과 시 과금                             |
-| 9    | CloudWatch Logs   | 로그 그룹 삭제 (선택)     | 소량이면 비용 미미                             |
-
-**삭제 순서가 중요합니다.** ECS Service → ALB → NAT → EIP → RDS → EC2 순으로 정리하세요.
-
----
-
-## 11) README 요구사항
-
-### A) 로컬 실행 방법
-
-- 요구 env, `docker compose up`, 접속 URL, health 확인(`/actuator/health`), API 예시
-
-### B) AWS 아키텍처 다이어그램
-
-```
-[Internet]
-    ↓
-[ALB] (public subnet, internet-facing)
-    ├── /api/*       → [Backend TG] (IP target) → [Backend Service] → Spring Boot (:8080)
-    ├── /actuator/*  → [Backend TG] (운영 확인용, 헬스체크와 무관)
-    └── /* (기본)    → [Frontend TG] (IP target) → [Frontend Service] → nginx (:80)
-
-[NAT Gateway] (public subnet, 1개, 단일 AZ)
-    ↓
-[EC2 t3.small] (private subnet)
-    ├── Frontend Task (ENI) — nginx
-    └── Backend Task (ENI) — Spring Boot → [RDS MySQL] (private subnet)
-```
-
-- SG 흐름: Internet → ALB(80) → ECS(80/8080) → RDS(3306)
-- Subnet 구분: public(ALB, NAT) / private(EC2, RDS)
-
-### C) 설계 결정 기록 (Decision Log)
-
-| 결정                          | 이유                                           | 대안                                   |
-| ----------------------------- | ---------------------------------------------- | -------------------------------------- |
-| t3.small (t3.micro 대신)      | ENI 3개로 2 Service 분리 가능                  | t3.micro: ENI 2개, sidecar만 가능      |
-| awsvpc + NAT                  | 실무 표준, Fargate 전환 대비                   | bridge: $0이지만 레거시, 학습가치 낮음 |
-| NAT 1개 (단일 AZ)             | 비용 최적화, 학습 목적                         | NAT 2개: 가용성 우선, 월 +$33          |
-| TG target type = IP           | awsvpc에서 Task가 자체 ENI/IP를 받으므로 필수  | Instance: awsvpc와 호환 불가           |
-| 2 Service 분리                | ALB 경로 라우팅, 독립 배포/헬스체크            | sidecar: TG 1개, 경로 라우팅 불가      |
-| PUT (PATCH 대신)              | 모달 전체 필드 저장 구조에 부합                | PATCH: null 처리 복잡도 증가           |
-| SSM (Secrets Manager 대신)    | 무료, 학습/PoC 용도 충분                       | Secrets Manager: 유료                  |
-| minimumHealthy=0, max=100     | ENI 여유 0, 다운타임 허용(학습 목적)           | 기본값(100/200): ENI 부족 에러         |
-| Actuator 독립 경로            | `/api`와 분리가 운영 표준                      | `/api/actuator`: 비표준, 경로 혼란     |
-| Actuator health 외부 공개     | 학습 목적, 노출 범위 health로 최소화           | 실무: 내부 ALB/WAF/별도 포트로 제한    |
-| JVM -Xmx512m / 컨테이너 768MB | 힙 외 JVM 오버헤드(~1.5배) 고려, OOM Kill 방지 | -Xmx256m/512MB: 빠듯, GC 압박          |
-| Graceful Shutdown 명시          | ECS 배포 시 진행 중 요청 완료 보장               | immediate: 배포 시 502 에러 발생        |
-| ENTRYPOINT exec                 | java가 PID 1 → Docker SIGTERM 직접 수신          | sh -c: SIGTERM 미전달, 강제 종료        |
-| prod JSON 로그 (내장 structured)| CloudWatch Logs Insights 쿼리 가능, 추가 라이브러리 불필요 | 텍스트: 파싱 어려움                     |
-| dev health show-details=always  | DB 연결 상태 즉시 확인, 디버깅 용이              | never: 상세 정보 숨김                   |
-| ECR 푸시 스크립트               | 수동 배포 자동화, git hash 태그로 커밋 추적      | 수동 명령어: 실수 가능, 반복 비효율     |
-
-### D) 트러블슈팅
-
-- ALB target unhealthy: 헬스체크 path/port/SG 확인, **TG target type이 IP인지 확인**
-- Task PENDING: ENI 부족 → 기존 Task 수동 중지 후 재시도
-- RDS 연결 실패: SG/서브넷/SSM 환경변수 확인
-- CloudWatch Logs 미수집: awslogs 설정/IAM 권한/로그그룹 확인
-- 502 Bad Gateway: Backend Task 미실행 → ECS Service 이벤트/로그 확인
-- ECR pull 실패: NAT Gateway 상태/Route table 확인
-- Backend OOM Kill: JVM -Xmx가 컨테이너 memory보다 낮은지 확인
-
----
-
-## 12) 환경별 차이 요약
+## 9) 환경별 차이 요약
 
 | 항목            | 로컬 (docker-compose)            | AWS (ECS)                                 |
 | --------------- | -------------------------------- | ----------------------------------------- |
@@ -655,7 +540,7 @@ maximumPercent = 100
 
 ---
 
-## 13) 참고 링크
+## 10) 참고 링크
 
 | 주제                                         | URL                                                                                                                            |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |

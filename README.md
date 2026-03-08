@@ -1,19 +1,33 @@
 # Task Board
 
+![CI](https://github.com/ingbeen/task-flow/actions/workflows/deploy.yml/badge.svg)
+![Java](https://img.shields.io/badge/Java-17-orange)
+![React](https://img.shields.io/badge/React-19-blue)
+
 TODO/DOING/DONE 태스크 보드 애플리케이션.
 React + Spring Boot + MySQL 구성, Docker Compose로 로컬 실행.
 
 > **프로젝트 목표**: "앱 기능"보다 "배포/운영 흐름"을 보여주는 것
 > (컨테이너화 → ECR → ECS → ALB → RDS)
 
+## 주요 기능
+
+- 태스크 CRUD (생성, 조회, 수정, 삭제)
+- 상태별 칸반 보드 (TODO / DOING / DONE)
+- 우선순위, 마감일, 검색/필터/정렬/페이징
+- Docker Compose 원클릭 실행 (운영 시뮬레이션 + 개발 모드)
+- GitHub Actions CI/CD (master push → ECR → ECS 자동 배포)
+
 ## 기술 스택
 
 | 계층 | 기술 |
 |------|------|
-| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS 4, Headless UI, React Router 7 |
-| Backend | Java 17 (Temurin), Spring Boot 3.5.11, JPA, Flyway |
+| Frontend | React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, Headless UI 2 |
+| Backend | Java 17, Spring Boot 3.5.11, JPA, Flyway, Lombok |
 | Database | MySQL 8.0 |
-| Infra | Docker, nginx, docker-compose |
+| Infra | Docker, nginx 1.27, docker-compose |
+| CI/CD | GitHub Actions (master push → ECR → ECS) |
+| AWS | ECS (EC2, awsvpc), ALB, RDS, NAT Gateway, SSM Parameter Store |
 
 ## 로컬 실행
 
@@ -58,47 +72,42 @@ docker compose -f docker-compose.dev.yml up --build
 |-----|------|
 | http://localhost:5173/ | React UI (Vite HMR) |
 | http://localhost:8080/api/tasks | Backend API (직접 접근) |
-| http://localhost:8080/actuator/health | 헬스체크 |
 
 | 서비스 | 핫 리로드 방식 | 반영 속도 |
 |--------|---------------|-----------|
 | Frontend | Vite dev server + HMR (bind mount) | 즉시 |
 | Backend | inotifywait로 .java 변경 감지 → bootRun 자동 재시작 | ~10초 |
 
-## 아키텍처 (로컬)
+## 아키텍처
+
+### 로컬 (docker-compose)
 
 ```
-브라우저 → http://localhost/
-                ↓
-         nginx (port 80)
-         ├── /              → React 정적 파일 (SPA fallback)
-         ├── /api/*         → proxy_pass → Spring Boot(:8080)
-         └── /actuator/*    → proxy_pass → Spring Boot(:8080)
-                                      ↓
-                               MySQL(:3306)
+브라우저 → nginx(:80)
+            ├── /           → React 정적 파일 (SPA fallback)
+            ├── /api/*      → proxy_pass → Spring Boot(:8080)
+            └── /actuator/* → proxy_pass → Spring Boot(:8080)
+                                              ↓
+                                         MySQL(:3306)
 ```
 
-## 아키텍처 (AWS, 목표)
+### AWS (ECS)
 
 ```
-인터넷
-  ↓
-ALB (internet-facing, public subnet)
-  ├── /api/*       → Backend TG (IP) → Spring Boot (:8080)
-  ├── /actuator/*  → Backend TG
-  └── /* (기본)    → Frontend TG (IP) → nginx (:80)
+인터넷 → ALB (public subnet)
+          ├── /api/*      → Backend TG → Spring Boot(:8080)
+          ├── /actuator/* → Backend TG
+          └── /* (기본)   → Frontend TG → nginx(:80)
 
 EC2 t3.small (private subnet)
-  ├── Frontend Task (ENI) — nginx: 정적 서빙만
-  └── Backend Task (ENI) — Spring Boot → RDS MySQL (private subnet)
-
-NAT Gateway 1개 (public subnet, 단일 AZ)
+  ├── Frontend Task — nginx: 정적 서빙만
+  └── Backend Task — Spring Boot → RDS MySQL (private subnet)
 ```
 
 핵심 차이: 로컬에서는 nginx가 API 프록시, AWS에서는 ALB가 경로 라우팅.
 프론트 코드는 항상 `/api/...` 상대경로로 호출하므로 변경 없음.
 
-## API 엔드포인트
+## API
 
 | Method | Path | 설명 |
 |--------|------|------|
@@ -108,7 +117,8 @@ NAT Gateway 1개 (public subnet, 단일 AZ)
 | DELETE | /api/tasks/{id} | 삭제 |
 | GET | /actuator/health | 헬스체크 |
 
-## API 예시
+<details>
+<summary>API 호출 예시 (curl)</summary>
 
 ```bash
 # 목록 조회
@@ -129,127 +139,93 @@ curl -X DELETE http://localhost/api/tasks/1
 
 # 필터/검색/정렬/페이징
 curl "http://localhost/api/tasks?status=TODO&priority=HIGH&q=검색어&page=0&size=10&sort=createdAt,desc"
-
-# 헬스체크 (dev에서 DB 연결 상태 포함)
-curl http://localhost/actuator/health
 ```
 
-## AWS 배포 (ECR 푸시)
+</details>
+
+## 환경 변수
+
+### Backend (Spring Boot)
+
+| 변수 | 설명 | dev 기본값 | prod |
+|------|------|-----------|------|
+| `DB_HOST` | MySQL 호스트 | `localhost` | 필수 |
+| `DB_PORT` | MySQL 포트 | `3306` | 필수 |
+| `DB_NAME` | 데이터베이스명 | `taskboard` | 필수 |
+| `DB_USER` | DB 사용자 | `taskboard` | 필수 |
+| `DB_PASSWORD` | DB 비밀번호 | `taskboard` | 필수 |
+
+- `dev` 프로파일: 환경 변수 미설정 시 기본값 사용
+- `prod` 프로파일: 기본값 없음 (미설정 시 시작 실패, fail-fast)
+- AWS 환경에서는 SSM Parameter Store로 주입
+
+## AWS 배포
+
+### ECR 푸시 (수동)
 
 ```bash
-# ECR 이미지 빌드 및 푸시 (프로젝트 루트에서 실행)
-./scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]
-
-# 예시 (서울 리전)
-./scripts/ecr-push.sh 123456789012 ap-northeast-2
+# 프로젝트 루트에서 실행 (Account ID 자동 감지)
+./scripts/ecr-push.sh [AWS_REGION]
 ```
 
-- git short hash를 이미지 태그로 사용 (커밋 추적)
-- frontend 빌드 시 `nginx-aws.conf` 자동 적용 (정적 서빙만, 프록시 없음)
-- 사전 조건: AWS CLI v2 설치 + `aws configure` 완료 + ECR 리포지토리 생성
+사전 조건: AWS CLI v2 + `aws configure` 완료 + ECR 리포지토리 생성
 
-## CI/CD (GitHub Actions)
+### CI/CD (GitHub Actions)
 
-`master` 브랜치에 push(또는 merge) 시 자동으로 ECR 이미지 빌드/푸시 → ECS 서비스 업데이트가 실행됩니다.
+`master` push 시 자동 실행: Docker 빌드 → ECR 푸시 → ECS 배포
 
-```
-git push (master) → GitHub Actions → Docker 빌드 → ECR 푸시 → ECS 배포
-```
-
-### 파이프라인 흐름
-
-| 단계 | 설명 |
-|------|------|
-| 코드 체크아웃 | `actions/checkout@v4` |
-| AWS 자격 증명 | `aws-actions/configure-aws-credentials@v4` |
-| ECR 로그인 | `aws-actions/amazon-ecr-login@v2` |
-| Backend 빌드/푸시 | `backend/Dockerfile`, 태그: git short hash + latest |
-| Frontend 빌드/푸시 | `frontend/Dockerfile`, `NGINX_CONF=nginx-aws.conf`, 태그: git short hash + latest |
-| ECS 배포 | `aws ecs update-service --force-new-deployment` |
-
-### 필요한 GitHub Secrets
-
-| Secret | 설명 |
-|--------|------|
+| 필요한 GitHub Secrets | 설명 |
+|----------------------|------|
 | `AWS_ACCESS_KEY_ID` | IAM 액세스 키 |
 | `AWS_SECRET_ACCESS_KEY` | IAM 시크릿 키 |
 | `AWS_ACCOUNT_ID` | AWS 계정 ID |
 
-### 수동 트리거
+수동 트리거: GitHub Actions 탭 → "Deploy to AWS ECS" → "Run workflow"
 
-GitHub Actions 탭 → "Deploy to AWS ECS" → "Run workflow" 버튼으로 수동 배포 가능.
-
-## 설계 결정 (Decision Log)
+## 주요 설계 결정
 
 | 결정 | 이유 |
 |------|------|
 | PUT 전체 교체 (PATCH 아님) | 모달 전체 필드 저장 구조에 부합 |
-| Hard delete | 학습 목적, soft delete 불필요 |
 | Flyway + ddl-auto: validate | Flyway가 스키마 관리, Hibernate는 검증만 |
-| open-in-view: false | Service 계층에서 데이터 로딩 강제 |
 | nginx 설정 2개 (로컬/AWS) | 로컬: API 프록시 포함, AWS: 정적 서빙만 |
-| JVM -Xmx512m / 컨테이너 768MB | 힙 외 JVM 오버헤드 고려, OOM Kill 방지 |
-| Graceful Shutdown + exec | ECS 배포 시 진행 중 요청 완료 보장, SIGTERM 직접 수신 |
-| prod JSON 로그 (내장 structured) | CloudWatch Logs Insights 쿼리 가능, 추가 라이브러리 불필요 |
-| TG target type = IP | awsvpc에서 Task가 자체 ENI/IP를 받으므로 필수 |
-| SSM Parameter Store | 무료, 학습/PoC 용도 |
+| Graceful Shutdown + exec | ECS 배포 시 진행 중 요청 완료 보장 |
+| prod JSON 로그 (내장 structured) | CloudWatch Logs Insights 쿼리 가능 |
 | NAT 1개 (단일 AZ) | 비용 최적화, 학습 목적에서 가용성 트레이드오프 허용 |
-| CI/CD 단일 job (병렬 분리 안 함) | 학습 목적, 단순성 우선. ECR 로그인 중복 등 복잡도 회피 |
-| GitHub Actions Access Key 방식 | OIDC보다 설정 단순, 학습/PoC 용도 |
 
-상세 설계는 [DESIGN.md](./DESIGN.md) 참조.
+전체 설계 결정 및 상세 설계는 [DESIGN.md](./docs/DESIGN.md) 참조.
 
 ## 트러블슈팅
 
-### docker compose up 시 backend가 즉시 종료됨
-
-MySQL이 아직 준비되지 않았을 수 있습니다. `db` 서비스의 healthcheck가 `service_healthy`가 될 때까지 backend는 대기합니다. `docker compose logs db`로 MySQL 초기화 로그를 확인하세요.
-
-### http://localhost/ 접속 불가
-
-- `docker compose ps`로 frontend 컨테이너 상태를 확인합니다.
-- 포트 80이 다른 프로세스에 점유되어 있는지 확인합니다: `ss -tlnp | grep :80`
-
-### API 호출 시 502 Bad Gateway
-
-backend 컨테이너가 정상 실행 중인지 확인합니다: `docker compose logs backend`. Spring Boot 시작 완료까지 Flyway 마이그레이션 포함 약 10-20초가 소요됩니다.
-
-### MySQL 포트 충돌 (WSL2)
-
-WSL2와 Windows가 포트 공간을 공유합니다. docker-compose에서 `db` 포트를 호스트에 노출하지 않으므로 일반적으로 충돌하지 않습니다.
+| 증상 | 원인 및 해결 |
+|------|-------------|
+| `docker compose up` 시 backend 즉시 종료 | MySQL 미준비. `docker compose logs db`로 초기화 상태 확인 |
+| `localhost/` 접속 불가 | `docker compose ps`로 frontend 상태 확인. 포트 80 점유 여부: `ss -tlnp \| grep :80` |
+| API 502 Bad Gateway | backend 시작 대기 (Flyway 포함 ~10-20초). `docker compose logs backend` 확인 |
+| ECS Task 시작 후 바로 중지 | 헬스체크 유예 기간 확인. Spring Boot 시작 ~46초이므로 120초로 설정 |
+| ECS Task가 PENDING에서 멈춤 | t3.small ENI 한계(3개). 기존 Task 중지 후 재시도 |
 
 ## 프로젝트 구조
 
 ```
 task-flow/
-├── .github/workflows/
-│   └── deploy.yml                  # GitHub Actions CI/CD (master push → ECR → ECS)
-├── docker-compose.yml              # 운영 시뮬레이션 (nginx + JAR)
-├── docker-compose.dev.yml          # 개발 모드 (핫 리로드)
-├── backend/
-│   ├── Dockerfile                   # Multi-stage (Gradle → JRE)
-│   ├── Dockerfile.dev               # 개발용 (JDK + inotify-tools)
-│   ├── build.gradle
-│   └── src/main/
-│       ├── java/com/taskflow/      # Spring Boot 애플리케이션
-│       └── resources/
-│           ├── application.yml
-│           ├── application-dev.yml
-│           ├── application-prod.yml
-│           └── db/migration/       # Flyway SQL
-├── frontend/
-│   ├── Dockerfile                   # Multi-stage (Node → nginx)
-│   ├── Dockerfile.dev               # 개발용 (Vite dev server)
-│   ├── nginx-local.conf            # 로컬용 (API 프록시 포함)
-│   ├── nginx-aws.conf              # AWS용 (정적 서빙만)
-│   ├── package.json
-│   └── src/                        # React 애플리케이션
-├── scripts/
-│   └── ecr-push.sh                # ECR 이미지 빌드/푸시 자동화
-├── CLAUDE.md                       # AI 코딩 가이드라인
-├── DESIGN.md                       # 상세 설계서
-├── TODO.md                         # 구현 체크리스트
-├── LEARNING.md                     # 학습 기록
-├── TESTING2.md                     # 운영 항목 수동 테스트 가이드
-└── README.md
+├── backend/                    # Spring Boot (Java 17)
+├── frontend/                   # React + Vite (TypeScript)
+├── scripts/                    # ECR 푸시 스크립트
+├── .github/workflows/          # CI/CD (GitHub Actions)
+├── docker-compose.yml          # 운영 시뮬레이션
+├── docker-compose.dev.yml      # 개발 모드 (핫 리로드)
+└── docs/
+    ├── AWS_GUIDE.md            # AWS 배포 학습 가이드
+    ├── DESIGN.md               # 상세 설계서
+    ├── LEARNING.md             # 학습 가이드
+    └── TESTING.md              # 수동 테스트 가이드
 ```
+
+## Contributing
+
+1. Fork 후 feature 브랜치 생성 (`git checkout -b feature/my-feature`)
+2. 변경 사항 커밋
+3. 브랜치 Push (`git push origin feature/my-feature`)
+4. Pull Request 생성
+

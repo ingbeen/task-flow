@@ -149,7 +149,7 @@ management:
 
 | 항목 | dev | prod |
 |------|-----|------|
-| DB 기본값 | `localhost:3306/taskboard` | **없음** (환경변수 필수) |
+| DB 기본값 | `localhost:3306/taskboard` | **없음** (환경변수 필수, DB_PORT만 3306 기본값) |
 | SSL | `useSSL=false` | `useSSL=true` |
 | 로깅 | DEBUG/TRACE (상세, 텍스트) | INFO/WARN (최소, **JSON**) |
 | 로그 포맷 | 텍스트 (기본) | `logstash` JSON (CloudWatch 호환) |
@@ -158,7 +158,8 @@ management:
 
 > **왜 prod에는 기본값이 없는가?**
 > 운영 환경에서 실수로 로컬 DB에 연결되는 것을 방지한다.
-> 환경변수가 하나라도 빠지면 앱이 시작되지 않으므로, 설정 누락을 즉시 감지할 수 있다.
+> DB_HOST, DB_NAME, DB_USER, DB_PASSWORD는 기본값이 없어 누락 시 앱이 시작되지 않는다 (fail-fast).
+> DB_PORT만 3306 기본값이 있는데, MySQL 표준 포트라 변경 가능성이 낮기 때문이다.
 
 ---
 
