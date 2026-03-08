@@ -186,5 +186,5 @@
 - [ ] ECS Service 2개 생성 (minimumHealthyPercent=0, maximumPercent=100)
 - [ ] CloudWatch Logs 설정
 - [ ] 동작 확인 (ALB DNS 접속, API, Actuator, 로그)
-- [ ] GitHub Actions CI/CD 파이프라인
+- [x] GitHub Actions CI/CD 파이프라인
 - [ ] 리소스 정리 체크리스트 검증

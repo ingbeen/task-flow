@@ -1,0 +1,85 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
+  BACKEND_REPO: taskflow/backend
+  FRONTEND_REPO: taskflow/frontend
+  ECS_CLUSTER: taskflow-cluster
+  BACKEND_SERVICE: taskflow-backend-service
+  FRONTEND_SERVICE: taskflow-frontend-service
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      # 2. 이미지 태그 설정 (git short hash)
+      - name: 이미지 태그 설정
+        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      # 3. AWS 자격 증명 설정
+      - name: AWS 자격 증명 설정
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 4. ECR 로그인
+      - name: Amazon ECR 로그인
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 5. Backend 이미지 빌드
+      - name: Backend 이미지 빌드
+        run: docker build -t $BACKEND_REPO:$IMAGE_TAG ./backend
+
+      # 6. Backend 이미지 푸시
+      - name: Backend 이미지 푸시
+        run: |
+          docker tag $BACKEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
+          docker tag $BACKEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$BACKEND_REPO:latest
+          docker push $ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$BACKEND_REPO:latest
+
+      # 7. Frontend 이미지 빌드 (AWS용 nginx 설정 적용)
+      - name: Frontend 이미지 빌드
+        run: |
+          docker build \
+            --build-arg NGINX_CONF=nginx-aws.conf \
+            -t $FRONTEND_REPO:$IMAGE_TAG \
+            ./frontend
+
+      # 8. Frontend 이미지 푸시
+      - name: Frontend 이미지 푸시
+        run: |
+          docker tag $FRONTEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG
+          docker tag $FRONTEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$FRONTEND_REPO:latest
+          docker push $ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$FRONTEND_REPO:latest
+
+      # 9. Backend ECS 서비스 배포
+      - name: Backend ECS 서비스 배포
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $BACKEND_SERVICE \
+            --force-new-deployment
+
+      # 10. Frontend ECS 서비스 배포
+      - name: Frontend ECS 서비스 배포
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $FRONTEND_SERVICE \
+            --force-new-deployment
