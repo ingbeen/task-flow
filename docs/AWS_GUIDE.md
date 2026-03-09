@@ -1,8 +1,9 @@
-# AWS 배포 진행 기록 — TaskFlow 프로젝트
+# AWS 배포 학습 가이드
 
-> **목적:** AWS 회원가입부터 ECS Service 생성까지 진행한 모든 과정을 학습용으로 정리
+> **목적:** AWS 회원가입부터 CI/CD까지 진행한 모든 과정을 학습용으로 정리
 > **대상:** AWS 완전 초보자
 > **원칙:** "무조건 따라하기"가 아닌, 왜 이렇게 하는지 이해하면서 진행
+> **참조:** 설계 상세는 DESIGN.md, 로컬 구현 학습은 LEARNING.md, 테스트는 TESTING.md 참조
 
 ---
 
@@ -65,7 +66,6 @@ RDS MySQL (Private Subnet, AZ-a) — Backend만 접근 가능
     └── ECS Service가 Task IP를 자동 등록/해제
   Listener Rules ──→ /api/* → Backend TG, /actuator/* → Backend TG, /* → Frontend TG
 ```
-
 ---
 
 ## 0단계: AWS 계정 설정
@@ -122,14 +122,14 @@ RDS MySQL (Private Subnet, AZ-a) — Backend만 접근 가능
 
 > **왜 예산?** 무료 플랜이라 카드 결제는 안 되지만, 크레딧 소진 속도를 파악할 수 있습니다. NAT Gateway 같은 서비스는 시간당 과금이라 알림 없이는 크레딧이 얼마나 빠르게 줄어드는지 모릅니다.
 >
-> **온보딩 크레딧:** 이 활동을 완료하면 $20 추가 크레딧을 받을 수 있습니다.
+> **온보딩 크레딧:** 이 활동을 완료하면 $100 추가 크레딧을 받을 수 있습니다.
 
 ### 0-6. 크레딧 확인
 
 **경로:** 과금 정보 및 비용 관리 → 크레딧
 
 **확인 포인트:**
-- 남은 총 금액 (가입 $100 + 온보딩 $20 = $120 확인)
+- 남은 총 금액 (가입 $100 + 온보딩 $100 = $200 확인)
 - 만료 날짜
 - 활성 크레딧 개수
 
@@ -287,7 +287,7 @@ VPC 목록 → `taskflow-vpc` 선택 → 작업 → VPC 설정 편집 → **DNS 
 
 > **이 단계의 목표:** 데이터를 저장할 DB와 Docker 이미지를 올릴 저장소를 준비합니다.
 
-### 2-1. RDS 서브넷 그룹 생성
+####  RDS 서브넷 그룹 생성
 
 **경로:** 콘솔 검색 → RDS → 서브넷 그룹 → DB 서브넷 그룹 생성
 
@@ -304,7 +304,7 @@ VPC 목록 → `taskflow-vpc` 선택 → 작업 → VPC 설정 편집 → **DNS 
 
 **이 리소스는 어디서 사용되나?** → 2-2 RDS 생성 시 "DB 서브넷 그룹" 선택란에서 사용
 
-### 2-2. RDS MySQL 생성
+####  RDS MySQL 생성
 
 **경로:** RDS → 데이터베이스 → 데이터베이스 생성
 
@@ -333,7 +333,7 @@ VPC 목록 → `taskflow-vpc` 선택 → 작업 → VPC 설정 편집 → **DNS 
 >
 > **엔드포인트:** `taskflow-db.xxxx.ap-northeast-2.rds.amazonaws.com` — 이 주소를 SSM에 저장합니다.
 
-### 2-3. SSM Parameter Store 등록
+####  SSM Parameter Store 등록
 
 **경로:** 콘솔 검색 → Systems Manager → 파라미터 스토어 → 파라미터 생성
 
@@ -405,7 +405,7 @@ aws sts get-caller-identity
 **ECR 푸시:**
 ```bash
 cd ~/workspace/task-flow
-./scripts/ecr-push.sh 843302972967 ap-northeast-2
+./scripts/ecr-push.sh ap-northeast-2
 ```
 
 > **액세스 키가 필요한 이유:** 콘솔은 브라우저 로그인, WSL에서 AWS 서비스 접근은 액세스 키로 인증합니다.
@@ -418,7 +418,7 @@ cd ~/workspace/task-flow
 
 > **이 단계의 목표:** 실제로 컨테이너를 실행하고 인터넷에서 접속 가능하게 만듭니다.
 
-### 3-1. ECS Cluster + EC2 생성
+####  ECS Cluster + EC2 생성
 
 **경로:** 콘솔 검색 → ECS → 클러스터 → 클러스터 생성
 
@@ -443,7 +443,7 @@ cd ~/workspace/task-flow
 >
 > **t3.small인 이유:** ENI 최대 3개 = primary(1) + frontend task(1) + backend task(1). t3.micro는 ENI 2개라 2 Service 분리가 불가능합니다.
 
-### 3-2. IAM Role 생성
+####  IAM Role 생성
 
 **경로:** 콘솔 검색 → IAM → 역할 → 역할 생성
 
@@ -460,7 +460,7 @@ cd ~/workspace/task-flow
 
 **이 리소스는 어디서 사용되나?** → 3-3 Task Definition의 "태스크 실행 역할"에서 선택
 
-### 3-3. Task Definition 2개 생성
+####  Task Definition 2개 생성
 
 **경로:** ECS → 태스크 정의 → 새 태스크 정의 생성
 
@@ -594,25 +594,380 @@ Backend와 동일하되:
 
 ---
 
-## 현재 상태 요약
+---
 
-| 리소스 | 상태 | 비고 |
-|---|---|---|
-| VPC + 서브넷 + IGW + NAT + 라우팅 | ✅ 완료 | |
-| 보안 그룹 3개 | ✅ 완료 | |
-| RDS | ✅ 사용 가능 | |
-| SSM Parameter Store | ✅ 5개 등록 | |
-| ECR + 이미지 푸시 | ✅ 완료 | 태그: 7b00354 |
-| ECS Cluster + EC2 | ✅ 활성 | 인스턴스 1대 |
-| IAM Role | ✅ 생성 | |
-| Task Definition | ✅ 2개 | |
-| ALB + TG + Rules | ✅ 완료 | |
-| Frontend Service | ✅ 1/1 실행 중 | 정상 |
-| Backend Service | ❌ 배포 실패 | 헬스체크 타임아웃 — 다음 문서에서 해결 |
+## 4단계: 문제 해결 + 동작 확인
+
+> **이 단계의 목표:** Backend 배포 실패를 해결하고, 전체 시스템이 정상 동작하는지 확인합니다.
+
+#### 헬스체크 유예 기간 변경
+
+**문제:** Backend Service가 배포 실패 상태. Spring Boot는 정상 시작(~46초)되지만, ECS가 Task를 죽이는 반복.
+
+**원인:** ECS Service의 상태 검사 유예 기간(Health Check Grace Period)이 0초. Spring Boot가 아직 로딩 중인데 ALB 헬스체크가 즉시 시작되어 "비정상"으로 판정. 배포 회로 차단기(circuit breaker)가 Task를 중지시키고, 새 Task를 다시 띄우는 무한 루프 발생.
+
+**조치:**
+
+| 서비스 | 변경 항목 | 변경 전 | 변경 후 | 이유 |
+|---|---|---|---|---|
+| `taskflow-backend-service` | 상태 검사 유예 기간 | 0초 | **120초** | Spring Boot 시작(~46초) + Flyway + JVM 워밍업 + 여유 |
+| `taskflow-frontend-service` | 상태 검사 유예 기간 | 0초 | **60초** | nginx는 1~2초면 시작하지만 여유 확보 |
+
+**경로:** ECS → 클러스터 → `taskflow-cluster` → 서비스 탭 → 해당 서비스 → 서비스 업데이트
+
+> **헬스체크 유예 기간이란?** "Task 시작 후 이 시간 동안은 헬스체크 실패를 무시하라"는 설정. JVM 기반 애플리케이션은 Cold Start가 느리기 때문에, 애플리케이션이 완전히 준비될 때까지 기다려주는 버퍼가 필수.
+>
+> **왜 처음부터 120초로 안 했나?** ECS 콘솔의 기본값이 0이고, Spring Boot 시작 시간을 미리 알기 어려움. 이런 트러블슈팅 과정 자체가 학습 포인트.
+
+#### 강제 새 배포
+
+유예 기간만 변경하면 자동 배포가 시작되지 않을 수 있음. 배포 회로 차단기가 이미 실패로 판정한 상태면 ECS가 새 Task를 시도하지 않음.
+
+**조치:** ECS → 서비스 → `taskflow-backend-service` → 서비스 업데이트 → **"강제 새 배포" 체크** → 업데이트
+
+**결과:** 1~3분 후 정상 배포 완료.
+
+- 서비스 개정(revision)이 2개 표시됨:
+  - **"소스" (이전 배포):** 0개 요청됨 / 0개 실행 중 — 실패했던 배포, ECS가 Task를 모두 내린 상태
+  - **"대상" (새 배포):** 1개 요청됨 / 1개 실행 중 — 유예 기간 120초 덕분에 성공
+- 배포 완료 후 소스 개정은 사라지고 대상 개정만 남음
 
 ---
 
-## 생성한 리소스 전체 목록 (정리 시 참고)
+### 4-2. 전체 동작 확인
+
+####  ALB DNS 확인
+
+**경로:** EC2 → 로드밸런싱 → 로드밸런서 → `taskflow-alb` → DNS 이름 복사
+
+**DNS:** `taskflow-alb-1790501168.ap-northeast-2.elb.amazonaws.com`
+
+####  확인 결과
+
+| URL | 결과 | 검증 내용 |
+|---|---|---|
+| `http://ALB_DNS/actuator/health` | `{"status":"UP"}` | ALB → Backend TG → Spring Boot Actuator 정상 |
+| `http://ALB_DNS/` (→ `/tasks`) | React UI 정상 표시 | ALB → Frontend TG → nginx → React SPA 정상 |
+| `http://ALB_DNS/api/tasks` | JSON 응답 (태스크 목록) | ALB → Backend TG → Spring Boot → RDS 전체 경로 정상 |
+
+####  CRUD 테스트
+
+브라우저에서 React UI를 통해 생성/조회/수정/삭제 전체 흐름 확인 완료.
+
+---
+
+## 5단계: CloudWatch Logs
+
+> **이 단계의 목표:** 로컬에서 `docker compose logs`로 보던 로그를 AWS에서는 CloudWatch로 확인합니다.
+
+####  로그 그룹 확인
+
+**경로:** 콘솔 검색 → CloudWatch → 로그 그룹
+
+| 로그 그룹 | 내용 | 생성 방식 |
+|---|---|---|
+| `/ecs/taskflow-backend` | Spring Boot 로그 (JSON 구조화) | ECS가 자동 생성 |
+| `/ecs/taskflow-frontend` | nginx access log | ECS가 자동 생성 |
+
+> **자동 생성 원리:** Task Definition에서 awslogs-group을 지정하면, ECS 콘솔이 `awslogs-create-group: true` 옵션을 자동 포함. `ecsTaskExecutionRole`의 `AmazonECSTaskExecutionRolePolicy`에 `logs:CreateLogGroup` 권한이 있어서 Task가 처음 실행될 때 로그 그룹이 자동 생성됨.
+>
+> **로그 그룹과 Task 매핑 확인:** ECS → 태스크 정의 → 해당 Task Definition → 최신 개정 → 컨테이너 정의 → 로그 구성에서 `awslogs-group`, `awslogs-region`, `awslogs-stream-prefix` 확인 가능.
+
+####  Backend 로그 (JSON 구조화)
+
+prod 프로필에서 JSON 구조화 로그가 정상 출력됨. CloudWatch Logs Insights에서 필드별 쿼리 가능.
+
+```json
+{
+  "@timestamp": "2026-03-08T04:48:30.711681659Z",
+  "message": "HTTP GET /api/tasks 200 10ms",
+  "logger_name": "com.taskflow.filter.RequestLoggingFilter",
+  "level": "INFO",
+  "http_method": "GET",
+  "uri": "/api/tasks",
+  "status": 200,
+  "latency_ms": 10
+}
+```
+
+####  Frontend 로그 (nginx access log)
+
+nginx의 기본 access log 형식. ALB 헬스체크 로그도 포함됨.
+
+```
+10.0.1.91 - - [08/Mar/2026:04:47:47 +0000] "GET / HTTP/1.1" 200 455 "-" "ELB-HealthChecker/2.0" "-"
+10.0.2.142 - - [08/Mar/2026:04:47:27 +0000] "GET / HTTP/1.1" 200 455 "-" "ELB-HealthChecker/2.0" "-"
+```
+
+> **두 IP의 정체:** `10.0.1.91`은 ALB의 public-a 노드, `10.0.2.142`는 public-b 노드. ALB 생성 시 public-a, public-b 두 서브넷에 매핑했기 때문에 양쪽 노드가 독립적으로 헬스체크를 수행. nginx Task는 private-a에만 있지만, ALB 양쪽 노드가 같은 Target Group의 IP로 직접 헬스체크를 보냄.
+
+### 5-4. 보존 기간 설정
+
+**조치:** 두 로그 그룹 모두 보존 기간을 **7일**로 변경
+
+**경로:** CloudWatch → 로그 그룹 → 선택 → 작업 → 보존 기간 편집 → 7일
+
+> **왜?** 기본값이 "만료 없음(영구 보관)"이라 로그가 무한히 쌓임. 학습용에서는 7일이면 충분하고 스토리지 비용 절약.
+
+---
+
+
+---
+
+## 6단계: GitHub Actions CI/CD
+
+> **이 단계의 목표:** `git push` 한 번으로 Docker 빌드 → ECR 푸시 → ECS 배포를 자동화합니다.
+
+####  브랜치 분리
+
+```bash
+git checkout -b develop
+git push -u origin develop
+```
+
+- `develop`: 개발 브랜치
+- `master`: 배포 브랜치 (merge 시 자동 배포)
+
+####  GitHub Secrets 등록
+
+**경로:** GitHub 레포 → Settings → Secrets and variables → Actions → New repository secret
+
+| Name | 값 | 설명 |
+|---|---|---|
+| `AWS_ACCESS_KEY_ID` | (액세스 키) | AWS CLI 인증 |
+| `AWS_SECRET_ACCESS_KEY` | (비밀 키) | AWS CLI 인증 |
+| `AWS_ACCOUNT_ID` | `843302972967` | ECR URI 구성에 사용 (고정값, 변경 안 됨) |
+
+> **Repository secrets vs Environment secrets:** Environment secrets는 staging/production 같은 배포 환경을 분리할 때 사용. 학습용에서는 Repository secrets로 충분.
+
+####  워크플로우 파일 생성
+
+**파일:** `.github/workflows/deploy.yml`
+
+**트리거:** `master` 브랜치 push 시 + workflow_dispatch (수동 트리거)
+
+**파이프라인 흐름:**
+1. 코드 체크아웃
+2. 이미지 태그 설정 (git short hash)
+3. AWS 자격 증명 설정 (GitHub Secrets)
+4. Amazon ECR 로그인
+5. Backend 이미지 빌드 → ECR 푸시 (태그: git hash + latest)
+6. Backend 이미지 푸시
+7. Frontend 이미지 빌드 (build arg: `NGINX_CONF=nginx-aws.conf`) → ECR 푸시
+8. Frontend 이미지 푸시
+9. Backend ECS 서비스 배포 (`aws ecs update-service --force-new-deployment`)
+10. Frontend ECS 서비스 배포
+
+**총 소요 시간:** 약 1분 42초
+
+####  Task Definition 이미지 태그 변경
+
+**문제:** Task Definition의 이미지 URI가 `:7b00354` (특정 git hash)로 고정되어 있어서, CI/CD에서 새 이미지를 푸시해도 ECS가 옛날 태그를 참조.
+
+**조치:** Task Definition 새 개정 생성 시 이미지 태그를 `:latest`로 변경.
+
+| Task Definition | 변경 전 | 변경 후 |
+|---|---|---|
+| `taskflow-backend` | `...taskflow/backend:7b00354` | `...taskflow/backend:latest` |
+| `taskflow-frontend` | `...taskflow/frontend:7b00354` | `...taskflow/frontend:latest` |
+
+**경로:** ECS → 태스크 정의 → 최신 리비전 선택 → "새 개정 생성" → 이미지 URI 변경
+
+> **`:latest` 태그의 트레이드오프:** 편리하지만 어떤 커밋의 코드가 실행 중인지 추적이 어려움. 실무에서는 CI/CD 파이프라인 안에서 Task Definition 자체를 새 git hash 태그로 업데이트하는 방식을 사용. 학습 단계에서는 `:latest`로 충분.
+
+### 6-5. 배포 확인
+
+`develop` → `master` merge 시 GitHub Actions가 자동 실행되어 ECR 이미지 빌드/푸시 및 ECS Service 업데이트가 정상 완료됨.
+
+---
+
+
+---
+
+## 7단계: 추가 설정
+
+> **이 단계의 목표:** 운영 편의를 위한 추가 설정을 진행합니다.
+
+### 7-1. nginx 헬스체크 로그 제외
+
+####  문제
+
+Frontend CloudWatch Logs에 ALB 헬스체크 로그가 30초마다 찍혀 실제 사용자 요청 로그가 묻힘.
+
+####  조치
+
+`frontend/nginx-aws.conf`에 헬스체크 로그 필터링 추가:
+
+```nginx
+# ALB 헬스체크 로그 제외 (User-Agent: ELB-HealthChecker/2.0)
+map $http_user_agent $loggable {
+    ~ELB-HealthChecker  0;
+    default             1;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    access_log /var/log/nginx/access.log combined if=$loggable;
+
+    # React 정적 파일 + SPA fallback (ALB가 API 라우팅 담당)
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+> **`map` 디렉티브:** User-Agent 헤더에 `ELB-HealthChecker`가 포함된 요청은 `$loggable=0`(로그 안 찍음), 나머지는 `$loggable=1`(로그 찍음).
+>
+> **`nginx-local.conf`는 변경 안 함:** 로컬에는 ALB 헬스체크가 없으므로 불필요.
+
+####  반영
+
+`develop`에서 변경 → `master` merge → GitHub Actions 자동 배포로 반영 완료.
+
+---
+
+### 7-2. EC2 Session Manager 접속 설정
+
+####  문제
+
+EC2 → 인스턴스 → 연결 → SSM Session Manager 탭에서 "오프라인" 상태.
+
+에러: `SSM Agent unable to acquire credentials: no valid credentials could be retrieved for ec2 identity. AccessDeniedException: Systems Manager's instance management role is not configured`
+
+####  원인
+
+EC2의 IAM Role(`ecsInstanceRole`)에 SSM 관련 권한이 없음. ECS 클러스터 생성 시 자동으로 만들어진 이 Role에는 `AmazonEC2ContainerServiceforEC2Role`(ECS 관련) 권한만 있었음.
+
+####  조치
+
+**경로:** IAM → 역할 → `ecsInstanceRole` → 권한 추가 → 정책 연결
+
+**추가한 정책:** `AmazonSSMManagedInstanceCore`
+
+이 정책이 EC2에게 SSM 서비스와 통신할 수 있는 권한을 부여.
+
+**정책 추가 후 EC2 재부팅 필요:**
+
+**경로:** EC2 → 인스턴스 → 해당 인스턴스 → 인스턴스 상태 → 인스턴스 재부팅
+
+> **재부팅 시 주의:** ASG에 속한 인스턴스라는 경고가 표시되지만, Reboot은 안전함. Terminate(종료)와 달리 인스턴스를 그대로 유지하면서 OS만 다시 시작. 다만 재부팅 중 ECS Task들이 잠시 중단됨 (ECS가 자동으로 다시 띄워줌).
+
+####  결과
+
+`ecsInstanceRole`의 최종 권한 정책:
+
+| 정책 | 용도 |
+|---|---|
+| `AmazonEC2ContainerServiceforEC2Role` | ECS Agent가 클러스터와 통신 |
+| `AmazonSSMManagedInstanceCore` | Session Manager 접속 허용 |
+
+재부팅 후 SSM Session Manager Ping status가 "온라인"으로 변경, 브라우저에서 EC2 터미널 접속 가능.
+
+> **Session Manager의 장점:** SSH 키 불필요, Private subnet EC2에도 접속 가능 (NAT Gateway를 통해 SSM 서비스 엔드포인트에 연결).
+
+---
+
+
+---
+
+## 8단계: EC2 내부 탐색 (Session Manager)
+
+> **이 단계의 목표:** EC2에 접속하여 컨테이너, 메모리, 네트워크 등 실제 환경을 탐색합니다.
+
+### 8-1. Docker 컨테이너 확인
+
+```bash
+sudo docker ps -a
+```
+
+> **`sudo` 필요:** Session Manager는 `ssm-user`로 로그인되며, docker 그룹에 미포함.
+
+**확인 결과:**
+- 실행 중: frontend(nginx), backend(Spring Boot), ecs-agent, 각 Task의 pause 컨테이너
+- 종료됨(Exited): 이전 배포의 컨테이너들 (`:7b00354` 태그 등)
+
+> **종료된 컨테이너 자동 정리:** ECS Agent가 `ECS_ENGINE_TASK_CLEANUP_WAIT_DURATION` 설정에 따라 자동 정리. 현재 설정 파일(`/etc/ecs/ecs.config`)에 해당 항목이 없으므로 기본값 3시간 적용. 수동 정리: `sudo docker container prune`
+
+> **EC2에 소스 코드는 없음:** Docker 이미지(바이너리 레이어)와 그 위에서 돌아가는 컨테이너만 존재. GitHub → GitHub Actions 빌드 → ECR 이미지 저장 → ECS가 pull → EC2에서 컨테이너 실행.
+
+### 8-2. 메모리 사용량
+
+```bash
+free -h
+```
+
+| 항목 | 값 |
+|---|---|
+| total | 1.9GB (t3.small 스펙) |
+| used | 738MB |
+| free | 286MB |
+| buff/cache | 888MB |
+| available | 1.0GB |
+
+> **JVM 메모리 설정 근거:** 2GB 중 OS + Docker + containerd + ECS Agent + 컨테이너들이 나눠 사용. JVM `-Xmx512m` + 오버헤드 ≈ 600MB가 대부분을 차지. 이보다 크게 잡으면 OOM Kill 위험.
+
+### 8-3. 네트워크 인터페이스
+
+```bash
+ip addr
+```
+
+| 인터페이스 | IP | 용도 |
+|---|---|---|
+| `ens5` | `10.0.11.48/24` | EC2 primary ENI (private-a 서브넷) |
+| `docker0` | `172.17.0.1/16` | Docker 기본 브리지 (사용 안 함) |
+| `ecs-bridge` | `169.254.172.1/22` | ECS 내부 통신용 브리지 |
+
+> **awsvpc 모드에서 ENI:** `ip addr`에는 EC2의 primary ENI만 보임. Task별 ENI는 네트워크 네임스페이스로 격리되어 있어 호스트에서 직접 보이지 않음. AWS 콘솔의 EC2 → 네트워크 인터페이스에서 확인 가능.
+
+### 8-4. NAT Gateway 아웃바운드 확인
+
+```bash
+curl -s https://checkip.amazonaws.com
+```
+
+**결과:** `43.201.145.189`
+
+이 IP가 NAT Gateway의 탄력적 IP임을 EC2 → 네트워크 및 보안 → 탄력적 IP에서 확인 가능. Private subnet의 EC2가 인터넷으로 나갈 때 `EC2 → NAT Gateway → IGW → 인터넷` 경로를 타며, 외부에서 보면 출발지 IP가 NAT의 탄력적 IP로 표시됨.
+
+---
+
+
+---
+
+## 현재 상태 요약
+
+| 항목 | 상태 |
+|---|---|
+| VPC + 서브넷 + IGW + NAT + 라우팅 | ✅ 완료 |
+| 보안 그룹 3개 | ✅ 완료 |
+| RDS | ✅ 사용 가능 |
+| SSM Parameter Store | ✅ 5개 등록 |
+| ECR + 이미지 푸시 | ✅ 완료 |
+| ECS Cluster + EC2 | ✅ 활성 |
+| IAM Role | ✅ 생성 (ecsTaskExecutionRole + ecsInstanceRole) |
+| Task Definition | ✅ 2개 (이미지 태그 `:latest`) |
+| ALB + TG + Rules | ✅ 완료 |
+| Frontend Service | ✅ 정상 (1/1 실행 중) |
+| Backend Service | ✅ 정상 (1/1 실행 중, 유예 기간 120초) |
+| ALB → React UI | ✅ 정상 |
+| ALB → API → RDS | ✅ 정상 |
+| ALB → Actuator | ✅ `{"status":"UP"}` |
+| CloudWatch Logs | ✅ 보존 7일 설정 |
+| GitHub Actions CI/CD | ✅ `master` merge 시 자동 배포 |
+| nginx 헬스체크 로그 | ✅ 제외 완료 |
+| EC2 Session Manager | ✅ 접속 가능 |
+| CRUD 전체 흐름 | ✅ 확인 완료 |
+
+---
+
+## 부록 A: 생성한 리소스 전체 목록
+
+### 초기 구성 리소스
 
 | 리소스 | 이름/식별자 | 과금 여부 | 삭제 시 주의 |
 |---|---|---|---|
@@ -634,3 +989,127 @@ Backend와 동일하되:
 | ALB | taskflow-alb | **~$20/월** | 삭제만 가능 (Stop 없음) |
 | Target Group 2개 | taskflow-frontend-tg, backend-tg | 무료 (ALB에 포함) | |
 | ECS Service 2개 | frontend-service, backend-service | 무료 (EC2에 과금) | |
+
+### 이후 변경/추가 리소스
+
+| 리소스 | 변경 내용 | 비용 |
+|---|---|---|
+| ECS Service (backend) | 헬스체크 유예 기간 0 → 120초 | 무료 |
+| ECS Service (frontend) | 헬스체크 유예 기간 0 → 60초 | 무료 |
+| Task Definition (backend) | 이미지 태그 `:7b00354` → `:latest` | 무료 |
+| Task Definition (frontend) | 이미지 태그 `:7b00354` → `:latest` | 무료 |
+| IAM Role (ecsInstanceRole) | `AmazonSSMManagedInstanceCore` 추가 | 무료 |
+| CloudWatch Logs | 보존 기간 7일 설정 | 비용 절감 |
+| GitHub Actions | `.github/workflows/deploy.yml` 추가 | 무료 (public 레포) |
+| GitHub Secrets | 3개 등록 | 무료 |
+| nginx-aws.conf | 헬스체크 로그 필터링 추가 | 무료 |
+
+---
+
+
+---
+
+## 부록 B: 리소스 정리 (학습 종료 시)
+
+학습이 끝나면 아래 순서대로 정리합니다. **순서가 중요합니다.**
+
+> ⚠️ **NAT Gateway, ALB는 Stop이 불가합니다.** 존재하는 동안 시간당 과금됩니다. 삭제만 가능합니다.
+> ⚠️ **무료 플랜이라도 크레딧이 줄어드는 건 같습니다.** 사용하지 않으면 리소스를 정리해야 크레딧을 아낄 수 있습니다.
+
+| 순서 | 리소스 | 조치 방법 | 주의사항 |
+|---|---|---|---|
+| 1 | ECS Service 2개 | 서비스 삭제 또는 원하는 태스크 0으로 | Task가 먼저 내려가야 함 |
+| 2 | ALB | EC2 → 로드밸런서 → **삭제** | Stop 없음, TG도 함께 삭제 |
+| 3 | NAT Gateway | VPC → NAT 게이트웨이 → **삭제** | Stop 없음 |
+| 4 | 탄력적 IP | EC2 → 탄력적 IP → **반납(Release)** | NAT 삭제해도 자동 반납 안 됨! |
+| 5 | ECS Cluster | ECS → 클러스터 → 삭제 | EC2(ASG)도 함께 정리됨 |
+| 6 | RDS | RDS → 데이터베이스 → **삭제** | Stop은 7일 후 자동 재시작됨 |
+| 7 | EC2 확인 | EC2 → 인스턴스 → Terminate 확인 | ASG 삭제 시 자동 종료되나 확인 필수 |
+| 8 | EBS 볼륨 | EC2 → 볼륨 → "available" 상태 확인 → 삭제 | EC2 종료해도 남아있을 수 있음 |
+| 9 | ECR 이미지 | ECR → 리포지토리 → 이미지 삭제 | 500MB 초과 시 과금 |
+| 10 | CloudWatch 로그 | CloudWatch → 로그 그룹 → 삭제 | 소량이면 비용 미미 |
+
+### 임시 중단 (나중에 다시 할 때)
+
+완전 삭제가 아니라 비용만 줄이고 싶다면:
+
+```
+비용이 큰 것만 삭제:
+1. NAT Gateway 삭제 + 탄력적 IP 반납 (~$33/월 절감)
+2. ALB 삭제 (~$20/월 절감)
+3. ECS Service 원하는 태스크 0으로 (Task 중지)
+4. RDS Stop (7일 후 자동 재시작 주의)
+5. EC2 ASG 원하는 용량 0으로 (EC2 중지)
+
+남겨두는 것 (비용 없음):
+- VPC, 서브넷, 라우팅 테이블, 보안 그룹
+- SSM Parameter Store
+- ECR 레포지토리 (이미지 500MB 이내)
+- Task Definition, IAM Role
+```
+
+> **다시 시작할 때:** NAT Gateway와 ALB를 다시 만들고, 라우팅 테이블에 새 NAT를 연결하면 됩니다.
+
+---
+
+---
+
+## 부록 C: 트러블슈팅 가이드
+
+### Backend Task가 시작 후 바로 중지됨
+
+**원인 1: 헬스체크 유예 기간 부족**
+- 증상: 로그에 "Started BackendApplication" 있지만 Task가 중지됨
+- 해결: ECS Service 업데이트 → 상태 검사 유예 기간 120초
+
+**원인 2: DB 연결 실패**
+- 증상: 로그에 "Connection refused" 또는 "Access denied"
+- 확인: SSM Parameter Store의 host/password 값이 정확한지
+- 확인: rds-sg 인바운드에 ecs-sg 3306 허용되어 있는지
+- 확인: RDS 상태가 "사용 가능"인지
+
+**원인 3: SSM 파라미터 읽기 실패**
+- 증상: 로그에 "ResourceNotFoundException" 또는 Task 시작 자체가 안 됨
+- 확인: Task Definition의 ValueFrom 경로가 `/taskflow/db/host` 형식인지
+- 확인: ecsTaskExecutionRole에 AmazonSSMReadOnlyAccess 정책이 있는지
+
+### ALB 접속 시 502 Bad Gateway
+
+- Backend Task가 실행 중인지 확인 (ECS → 태스크 탭)
+- Target Group 상태 확인 (EC2 → 대상 그룹 → 대상 탭 → "healthy" 여부)
+- Spring Boot 시작 완료까지 Flyway 포함 약 46초 소요 → 기다리고 재시도
+
+### ALB 접속 시 503 Service Unavailable
+
+- Target Group에 등록된 healthy 대상이 0개
+- ECS Service에서 Task가 실행되고 있는지 확인
+- 보안 그룹 체인 확인: alb-sg → ecs-sg (80/8080) → rds-sg (3306)
+
+### Task가 PENDING 상태에서 멈춤
+
+- ENI 부족: 다른 Task가 이미 실행 중일 수 있음 → 기존 Task 중지 후 재시도
+- EC2 용량 부족: ASG 원하는 용량이 0인지 확인
+- 서브넷 불일치: Task가 EC2와 다른 서브넷에 배치되려고 하는지 확인
+
+### ECR에서 이미지 pull 실패
+
+- NAT Gateway 상태 확인: VPC → NAT 게이트웨이 → "Available"인지
+- Private subnet 라우팅 테이블에 `0.0.0.0/0 → NAT` 규칙이 있는지
+- ecsTaskExecutionRole에 AmazonECSTaskExecutionRolePolicy가 있는지
+
+---
+
+## 부록 D: 학습 포인트 정리
+
+| 주제 | 핵심 내용 |
+|---|---|
+| 헬스체크 유예 기간 | JVM 앱은 Cold Start가 느려서 유예 기간이 필수. 기본값 0초는 Spring Boot에 부적합 |
+| 강제 새 배포 | 회로 차단기가 실패 상태로 고정되면 수동으로 강제 배포 필요 |
+| ALB 다중 AZ 노드 | ALB는 매핑된 각 AZ에 노드를 갖고, 양쪽에서 독립적으로 헬스체크 수행 |
+| ECS 로그 그룹 자동 생성 | `awslogs-create-group: true` + IAM 권한으로 Task 첫 실행 시 자동 생성 |
+| `:latest` 태그 | 편리하지만 커밋 추적 어려움. 실무에서는 CI/CD에서 Task Definition까지 업데이트 |
+| Session Manager vs SSH | Private subnet EC2에 SSH 키 없이 접속 가능. IAM 권한만 필요 |
+| 컨테이너 환경변수 격리 | SSM에서 주입된 DB 정보는 컨테이너 안에서만 보임. 호스트에서는 안 보임 |
+| NAT Gateway IP | Private EC2의 아웃바운드 트래픽은 NAT의 탄력적 IP로 나감 |
+| 메모리 계획 | t3.small 2GB에서 JVM + OS + Docker가 나눠 사용. `-Xmx512m`이 상한선 |
+| 종료된 컨테이너 정리 | ECS Agent가 기본 3시간 후 자동 정리 |

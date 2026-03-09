@@ -6,18 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Task Board 애플리케이션 (TODO/DOING/DONE). React + Spring Boot + MySQL 구성.
 로컬은 docker-compose, 운영은 AWS ECS + ALB + RDS 대상. 학습 목적 프로젝트.
-인증/권한 없음. 설계 상세는 DESIGN.md, 구현 진행 상황은 TODO.md 참조.
+인증/권한 없음. 설계 상세는 docs/DESIGN.md, AWS 배포 과정은 docs/AWS_GUIDE.md 참조.
 
 **프로젝트 목표**: "앱 기능"보다 "배포/운영 흐름"을 보여주는 것 (컨테이너화 → ECR → ECS → ALB → RDS).
 
 ## Implementation Progress
 
 - **Phase 1 (백엔드)**: 완료 (1-1 ~ 1-9 전체)
-- **Phase 2 (프론트엔드)**: 완료 (2-1 ~ 2-6 전체)
+- **Phase 2 (프론트엔드)**: 완료 (2-1 ~ 2-7 전체)
 - **Phase 3 (Docker/통합)**: 완료 (3-1 ~ 3-5 전체)
 - **Phase 4 (문서)**: 완료 (4-1)
+- **AWS 배포**: ECR 푸시, ECS Service 2개, ALB 경로 라우팅, RDS, GitHub Actions CI/CD 완료
+  - 배포 과정 기록: `docs/AWS_GUIDE.md`
 
-구현 체크리스트 및 향후 계획은 TODO.md 참조.
+로컬 코드/설정 학습은 docs/LEARNING.md, 테스트 체크리스트는 docs/TESTING.md 참조.
 
 ## Tech Stack
 
@@ -25,6 +27,8 @@ Task Board 애플리케이션 (TODO/DOING/DONE). React + Spring Boot + MySQL 구
 - **Frontend**: Vite 7, React 19, TypeScript 5.9, Tailwind CSS 4, Headless UI 2, React Router 7
 - **DB**: MySQL 8.0, Flyway 마이그레이션, JPA Auditing
 - **Infra**: Docker, nginx, docker-compose (개발 환경: WSL2 Ubuntu 24.04)
+- **CI/CD**: GitHub Actions (master push → ECR → ECS 자동 배포)
+- **AWS**: ECS (EC2 launch type, awsvpc), ALB, RDS MySQL, SSM Parameter Store, CloudWatch Logs
 
 ## Build & Run Commands
 
@@ -49,8 +53,8 @@ docker run --name taskboard-db \
   -e MYSQL_PASSWORD=taskboard \
   -p 3306:3306 -d mysql:8.0
 
-# ECR 이미지 빌드 및 푸시 (AWS 배포 시)
-./scripts/ecr-push.sh <AWS_ACCOUNT_ID> [AWS_REGION]
+# ECR 이미지 빌드 및 푸시 (AWS 배포 시, Account ID 자동 감지)
+./scripts/ecr-push.sh [AWS_REGION]
 ```
 
 ## Architecture
@@ -66,7 +70,7 @@ docker run --name taskboard-db \
                                          MySQL(:3306)
 ```
 
-### AWS (ECS, 향후 목표)
+### AWS (ECS)
 
 ```
 인터넷 → ALB (public subnet)
@@ -116,6 +120,12 @@ backend/src/main/java/com/taskflow/
 | Graceful Shutdown 명시 (기본값이지만)      | ECS 배포 시 진행 중 요청 완료 보장, ENTRYPOINT exec로 SIGTERM 전달 |
 | prod JSON 로그 (내장 structured logging)   | CloudWatch Logs Insights 쿼리 가능, 추가 라이브러리 불필요   |
 | dev health show-details=always             | DB 연결 상태 즉시 확인, 디버깅 용이                           |
+| ECS 헬스체크 유예 기간 120초 (backend)     | Spring Boot Cold Start ~46초 + Flyway + JVM 워밍업 대기       |
+| Task Definition 이미지 태그 `:latest`      | CI/CD force-new-deployment 시 최신 이미지 pull 보장           |
+| nginx-aws.conf 헬스체크 로그 제외          | ALB 헬스체크 30초 간격 로그가 CloudWatch 스팸 방지            |
+| ECR 푸시 스크립트 Account ID 자동 감지     | `aws sts get-caller-identity` 활용, 수동 입력 실수 방지      |
+| CI/CD 단일 job (병렬 분리 안 함)           | 학습 목적, 단순성 우선. ECR 로그인 중복 등 복잡도 회피        |
+| GitHub Actions Access Key 방식             | OIDC보다 설정 단순, 학습/PoC 용도                             |
 
 ## API Endpoints
 

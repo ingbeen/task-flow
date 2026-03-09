@@ -1,0 +1,3461 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskFlow AWS 아키텍처</title>
+    <script
+      src="https://unpkg.com/react@18/umd/react.production.min.js"
+      crossorigin
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
+      crossorigin
+    ></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0b0f19;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useState } = React;
+
+      // ─── Color Tokens ───
+      const C = {
+        bg: "#0B0F19",
+        card: "#111827",
+        border: "#1e293b",
+        borderLight: "#334155",
+        orange: "#FF9900",
+        orangeDim: "rgba(255,153,0,0.12)",
+        blue: "#3B82F6",
+        blueDim: "rgba(59,130,246,0.12)",
+        cyan: "#06B6D4",
+        cyanDim: "rgba(6,182,212,0.10)",
+        green: "#10B981",
+        greenDim: "rgba(16,185,129,0.10)",
+        purple: "#8B5CF6",
+        purpleDim: "rgba(139,92,246,0.10)",
+        red: "#EF4444",
+        redDim: "rgba(239,68,68,0.10)",
+        yellow: "#F59E0B",
+        yellowDim: "rgba(245,158,11,0.10)",
+        text: "#E2E8F0",
+        textDim: "#94A3B8",
+        textMuted: "#64748B",
+        white: "#FFFFFF",
+      };
+
+      const font = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
+
+      // ─── Shared Components ───
+      const Badge = ({ children, color = C.cyan }) => (
+        <span
+          style={{
+            display: "inline-block",
+            padding: "3px 10px",
+            borderRadius: "4px",
+            fontSize: "11px",
+            fontWeight: 600,
+            fontFamily: font,
+            letterSpacing: "0.5px",
+            color,
+            background: color + "18",
+            border: "1px solid " + color + "30",
+          }}
+        >
+          {children}
+        </span>
+      );
+
+      const InfoBox = ({ title, children, color = C.cyan, icon = "💡" }) => (
+        <div
+          style={{
+            background: color + "08",
+            border: "1px solid " + color + "25",
+            borderRadius: "8px",
+            padding: "16px 18px",
+            marginTop: "14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color,
+              marginBottom: "8px",
+              fontFamily: font,
+            }}
+          >
+            {icon} {title}
+          </div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: C.textDim,
+              lineHeight: 1.8,
+              fontFamily: font,
+            }}
+          >
+            {children}
+          </div>
+        </div>
+      );
+
+      const SectionTitle = ({ children, sub }) => (
+        <div style={{ marginBottom: "18px" }}>
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              color: C.white,
+              margin: 0,
+              fontFamily: font,
+            }}
+          >
+            {children}
+          </h2>
+          {sub && (
+            <p
+              style={{
+                fontSize: "12px",
+                color: C.textMuted,
+                margin: "5px 0 0",
+                fontFamily: font,
+              }}
+            >
+              {sub}
+            </p>
+          )}
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB 1 — Architecture
+   ═══════════════════════════════════════ */
+      const Tab1Architecture = () => (
+        <div>
+          <SectionTitle sub="Region → VPC → Subnet → Service 중첩 구조">
+            AWS 아키텍처 구조도
+          </SectionTitle>
+          <svg viewBox="0 0 1060 755" style={{ width: "100%", height: "auto" }}>
+            <defs>
+              <filter id="ds">
+                <feDropShadow
+                  dx="1"
+                  dy="2"
+                  stdDeviation="3"
+                  floodColor="#000"
+                  floodOpacity="0.3"
+                />
+              </filter>
+            </defs>
+            <rect width="1060" height="755" fill={C.bg} rx="8" />
+
+            {/* Region */}
+            <rect
+              x="15"
+              y="10"
+              width="1030"
+              height="730"
+              rx="8"
+              fill="none"
+              stroke={C.orange}
+              strokeWidth="1.5"
+              strokeDasharray="6 3"
+              opacity="0.5"
+            />
+            <text
+              x="30"
+              y="32"
+              fill={C.orange}
+              fontSize="12"
+              fontFamily={font}
+              opacity="0.8"
+            >
+              Region: ap-northeast-2 (Seoul)
+            </text>
+
+            {/* VPC */}
+            <rect
+              x="30"
+              y="45"
+              width="1000"
+              height="690"
+              rx="8"
+              fill="rgba(16,185,129,0.04)"
+              stroke={C.green}
+              strokeWidth="1.5"
+            />
+            <text
+              x="50"
+              y="68"
+              fill={C.green}
+              fontSize="14"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              VPC: taskflow-vpc (10.0.0.0/16)
+            </text>
+
+            {/* IGW — inside VPC top-left */}
+            <rect
+              x="50"
+              y="82"
+              width="82"
+              height="56"
+              rx="6"
+              fill={C.purpleDim}
+              stroke={C.purple}
+              strokeWidth="1.2"
+              filter="url(#ds)"
+            />
+            <text
+              x="91"
+              y="106"
+              textAnchor="middle"
+              fill={C.purple}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              IGW
+            </text>
+            <text
+              x="91"
+              y="124"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              taskflow-igw
+            </text>
+
+            {/* Public Subnet AZ-a */}
+            <rect
+              x="150"
+              y="82"
+              width="410"
+              height="230"
+              rx="6"
+              fill={C.blueDim}
+              stroke={C.blue}
+              strokeWidth="1.2"
+            />
+            <text
+              x="168"
+              y="105"
+              fill={C.blue}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              Public Subnet AZ-a
+            </text>
+            <text
+              x="168"
+              y="123"
+              fill={C.textMuted}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-public-a · 10.0.1.0/24
+            </text>
+
+            {/* ALB */}
+            <rect
+              x="175"
+              y="140"
+              width="175"
+              height="78"
+              rx="6"
+              fill="rgba(59,130,246,0.08)"
+              stroke="#5BA3E6"
+              strokeWidth="1"
+              filter="url(#ds)"
+            />
+            <text
+              x="262"
+              y="166"
+              textAnchor="middle"
+              fill={C.white}
+              fontSize="13"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              ALB
+            </text>
+            <text
+              x="262"
+              y="184"
+              textAnchor="middle"
+              fill={C.textDim}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-alb
+            </text>
+            <text
+              x="262"
+              y="202"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              Internet-facing · HTTP:80
+            </text>
+
+            {/* NAT */}
+            <rect
+              x="380"
+              y="140"
+              width="160"
+              height="78"
+              rx="6"
+              fill={C.greenDim}
+              stroke={C.green}
+              strokeWidth="1"
+              filter="url(#ds)"
+            />
+            <text
+              x="460"
+              y="166"
+              textAnchor="middle"
+              fill={C.white}
+              fontSize="13"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              NAT Gateway
+            </text>
+            <text
+              x="460"
+              y="184"
+              textAnchor="middle"
+              fill={C.textDim}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-nat
+            </text>
+            <text
+              x="460"
+              y="202"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              탄력적 IP 할당
+            </text>
+
+            {/* RT label */}
+            <rect
+              x="175"
+              y="234"
+              width="360"
+              height="28"
+              rx="4"
+              fill="rgba(139,92,246,0.06)"
+              stroke={C.purple}
+              strokeWidth="0.5"
+              strokeDasharray="3 2"
+            />
+            <text
+              x="355"
+              y="253"
+              textAnchor="middle"
+              fill={C.purple}
+              fontSize="10"
+              fontFamily={font}
+            >
+              RT: taskflow-rt-public → 0.0.0.0/0 → IGW
+            </text>
+            <text x="175" y="290" fill={C.blue} fontSize="10" fontFamily={font}>
+              SG: taskflow-alb-sg (0.0.0.0/0:80)
+            </text>
+
+            {/* Public Subnet AZ-b */}
+            <rect
+              x="580"
+              y="82"
+              width="435"
+              height="230"
+              rx="6"
+              fill="rgba(59,130,246,0.04)"
+              stroke={C.blue}
+              strokeWidth="1"
+              strokeDasharray="4 2"
+            />
+            <text
+              x="598"
+              y="105"
+              fill={C.blue}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              Public Subnet AZ-b
+            </text>
+            <text
+              x="598"
+              y="123"
+              fill={C.textMuted}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-public-b · 10.0.2.0/24
+            </text>
+            <rect
+              x="620"
+              y="150"
+              width="360"
+              height="62"
+              rx="6"
+              fill="rgba(245,158,11,0.06)"
+              stroke={C.yellow}
+              strokeWidth="0.8"
+              strokeDasharray="4 2"
+            />
+            <text
+              x="800"
+              y="178"
+              textAnchor="middle"
+              fill={C.yellow}
+              fontSize="11"
+              fontFamily={font}
+            >
+              빈 서브넷 (ALB 생성 조건: 최소 2 AZ)
+            </text>
+            <text
+              x="800"
+              y="198"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="10"
+              fontFamily={font}
+            >
+              ALB 노드만 배치됨
+            </text>
+
+            {/* Private Subnet AZ-a — shifted down 35px */}
+            <rect
+              x="150"
+              y="365"
+              width="410"
+              height="350"
+              rx="6"
+              fill={C.purpleDim}
+              stroke={C.purple}
+              strokeWidth="1.2"
+            />
+            <text
+              x="168"
+              y="389"
+              fill={C.purple}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              Private Subnet AZ-a
+            </text>
+            <text
+              x="168"
+              y="407"
+              fill={C.textMuted}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-private-a · 10.0.11.0/24
+            </text>
+
+            {/* EC2 box */}
+            <rect
+              x="168"
+              y="423"
+              width="375"
+              height="155"
+              rx="6"
+              fill="rgba(255,153,0,0.06)"
+              stroke={C.orange}
+              strokeWidth="1"
+              strokeDasharray="5 3"
+            />
+            <text
+              x="185"
+              y="445"
+              fill={C.orange}
+              fontSize="11"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              EC2 t3.small (ASG min=1, max=1) · ENI 3/3
+            </text>
+
+            {/* Frontend Task */}
+            <rect
+              x="185"
+              y="457"
+              width="165"
+              height="68"
+              rx="5"
+              fill="rgba(6,182,212,0.08)"
+              stroke={C.cyan}
+              strokeWidth="1"
+              filter="url(#ds)"
+            />
+            <text
+              x="267"
+              y="481"
+              textAnchor="middle"
+              fill={C.white}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              Frontend Task
+            </text>
+            <text
+              x="267"
+              y="499"
+              textAnchor="middle"
+              fill={C.textDim}
+              fontSize="10"
+              fontFamily={font}
+            >
+              nginx:80 (정적 서빙)
+            </text>
+            <text
+              x="267"
+              y="515"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              CPU 0.25 · MEM 256MB
+            </text>
+
+            {/* Backend Task */}
+            <rect
+              x="365"
+              y="457"
+              width="165"
+              height="68"
+              rx="5"
+              fill={C.orangeDim}
+              stroke={C.orange}
+              strokeWidth="1"
+              filter="url(#ds)"
+            />
+            <text
+              x="447"
+              y="481"
+              textAnchor="middle"
+              fill={C.white}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              Backend Task
+            </text>
+            <text
+              x="447"
+              y="499"
+              textAnchor="middle"
+              fill={C.textDim}
+              fontSize="10"
+              fontFamily={font}
+            >
+              Spring Boot:8080
+            </text>
+            <text
+              x="447"
+              y="515"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              CPU 0.5 · MEM 768MB
+            </text>
+
+            {/* RDS */}
+            <rect
+              x="185"
+              y="615"
+              width="230"
+              height="78"
+              rx="5"
+              fill={C.blueDim}
+              stroke={C.blue}
+              strokeWidth="1"
+              filter="url(#ds)"
+            />
+            <text
+              x="300"
+              y="641"
+              textAnchor="middle"
+              fill={C.white}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              RDS MySQL 8.0
+            </text>
+            <text
+              x="300"
+              y="659"
+              textAnchor="middle"
+              fill={C.textDim}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-db · db.t4g.micro
+            </text>
+            <text
+              x="300"
+              y="677"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              Backend만 접근 (ecs-sg→rds-sg:3306)
+            </text>
+
+            {/* RT private */}
+            <rect
+              x="430"
+              y="625"
+              width="120"
+              height="50"
+              rx="4"
+              fill="rgba(139,92,246,0.06)"
+              stroke={C.purple}
+              strokeWidth="0.5"
+              strokeDasharray="3 2"
+            />
+            <text
+              x="490"
+              y="646"
+              textAnchor="middle"
+              fill={C.purple}
+              fontSize="9"
+              fontFamily={font}
+            >
+              RT: taskflow-rt-private
+            </text>
+            <text
+              x="490"
+              y="663"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="9"
+              fontFamily={font}
+            >
+              0.0.0.0/0 → NAT
+            </text>
+
+            {/* Private Subnet AZ-b — shifted down 35px */}
+            <rect
+              x="580"
+              y="365"
+              width="435"
+              height="350"
+              rx="6"
+              fill="rgba(139,92,246,0.03)"
+              stroke={C.purple}
+              strokeWidth="1"
+              strokeDasharray="4 2"
+            />
+            <text
+              x="598"
+              y="389"
+              fill={C.purple}
+              fontSize="12"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              Private Subnet AZ-b
+            </text>
+            <text
+              x="598"
+              y="407"
+              fill={C.textMuted}
+              fontSize="10"
+              fontFamily={font}
+            >
+              taskflow-private-b · 10.0.12.0/24
+            </text>
+            <rect
+              x="620"
+              y="455"
+              width="360"
+              height="70"
+              rx="6"
+              fill="rgba(245,158,11,0.06)"
+              stroke={C.yellow}
+              strokeWidth="0.8"
+              strokeDasharray="4 2"
+            />
+            <text
+              x="800"
+              y="486"
+              textAnchor="middle"
+              fill={C.yellow}
+              fontSize="11"
+              fontFamily={font}
+            >
+              빈 서브넷 (RDS 서브넷 그룹 조건: 최소 2 AZ)
+            </text>
+            <text
+              x="800"
+              y="508"
+              textAnchor="middle"
+              fill={C.textMuted}
+              fontSize="10"
+              fontFamily={font}
+            >
+              실제 리소스 없음
+            </text>
+
+            {/* ── Arrows with correct arrowhead directions ── */}
+
+            {/* IGW → ALB: down-right */}
+            <line
+              x1="132"
+              y1="110"
+              x2="172"
+              y2="162"
+              stroke={C.blue}
+              strokeWidth="1.5"
+            />
+            <polygon points="175,165 165,162 170,155" fill={C.blue} />
+
+            {/* ALB → Frontend (/*): straight down */}
+            <line
+              x1="230"
+              y1="218"
+              x2="230"
+              y2="454"
+              stroke={C.cyan}
+              strokeWidth="1.5"
+              strokeDasharray="4 2"
+            />
+            <polygon points="230,457 226,447 234,447" fill={C.cyan} />
+            {/* /* label — between subnets */}
+            <rect
+              x="196"
+              y="328"
+              width="70"
+              height="22"
+              rx="4"
+              fill="rgba(6,182,212,0.15)"
+              stroke={C.cyan}
+              strokeWidth="0.8"
+            />
+            <text
+              x="231"
+              y="344"
+              textAnchor="middle"
+              fill={C.cyan}
+              fontSize="11"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              /* (기본)
+            </text>
+
+            {/* ALB → Backend (/api/*): down-right */}
+            <line
+              x1="300"
+              y1="218"
+              x2="443"
+              y2="454"
+              stroke={C.orange}
+              strokeWidth="1.5"
+              strokeDasharray="4 2"
+            />
+            <polygon points="445,457 435,450 444,446" fill={C.orange} />
+            {/* /api/* label — between subnets */}
+            <rect
+              x="340"
+              y="328"
+              width="72"
+              height="22"
+              rx="4"
+              fill="rgba(255,153,0,0.15)"
+              stroke={C.orange}
+              strokeWidth="0.8"
+            />
+            <text
+              x="376"
+              y="344"
+              textAnchor="middle"
+              fill={C.orange}
+              fontSize="11"
+              fontWeight="bold"
+              fontFamily={font}
+            >
+              /api/*
+            </text>
+
+            {/* Backend → RDS: down-left */}
+            <line
+              x1="430"
+              y1="525"
+              x2="343"
+              y2="612"
+              stroke={C.blue}
+              strokeWidth="1.5"
+            />
+            <polygon points="340,615 350,613 338,607" fill={C.blue} />
+            <text x="396" y="575" fill={C.blue} fontSize="10" fontFamily={font}>
+              :3306
+            </text>
+
+            {/* NAT outbound note */}
+            <line
+              x1="460"
+              y1="218"
+              x2="460"
+              y2="235"
+              stroke={C.green}
+              strokeWidth="1"
+              strokeDasharray="3 2"
+              opacity="0.5"
+            />
+            <text x="475" y="230" fill={C.green} fontSize="9" fontFamily={font}>
+              outbound → IGW → Internet
+            </text>
+          </svg>
+
+          <InfoBox title="AZ-b가 비어있는 이유" color={C.yellow} icon="⚠️">
+            <strong style={{ color: C.yellow }}>ALB</strong>는 최소 2개 AZ의
+            Public Subnet을 요구합니다.{" "}
+            <strong style={{ color: C.yellow }}>RDS 서브넷 그룹</strong>도 최소
+            2개 AZ의 Private Subnet을 요구합니다.
+            <br />→ 실제 리소스(EC2, NAT, RDS)는{" "}
+            <strong style={{ color: C.white }}>전부 AZ-a에만 배치</strong>하고,
+            AZ-b는 AWS 서비스 생성 조건 충족용 빈 서브넷입니다.
+            <br />→ 비용 최적화(NAT 1개, EC2 1대)를 위한 학습용 설계입니다. 운영
+            환경이라면 Multi-AZ 구성이 필요합니다.
+          </InfoBox>
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB 2 — Service List
+   ═══════════════════════════════════════ */
+      const services = [
+        {
+          name: "VPC",
+          id: "taskflow-vpc",
+          desc: "모든 리소스의 가상 네트워크 공간",
+          role: "CIDR 10.0.0.0/16 · DNS 호스트 이름 활성화",
+          cost: "무료",
+          color: C.green,
+          group: "네트워크",
+        },
+        {
+          name: "서브넷 (4개)",
+          id: "public-a/b, private-a/b",
+          desc: "VPC 안의 IP 구역",
+          role: "Public 2개(ALB/NAT) + Private 2개(EC2/RDS)",
+          cost: "무료",
+          color: C.green,
+          group: "네트워크",
+        },
+        {
+          name: "Internet Gateway",
+          id: "taskflow-igw",
+          desc: "VPC ↔ 인터넷 양방향 연결",
+          role: "Public Subnet이 인터넷과 통신하는 출입문",
+          cost: "무료",
+          color: C.purple,
+          group: "네트워크",
+        },
+        {
+          name: "NAT Gateway",
+          id: "taskflow-nat",
+          desc: "Private → 인터넷 나가기 전용",
+          role: "ECR pull, CloudWatch 로그, SSM 파라미터 조회",
+          cost: "~$33/월",
+          color: C.green,
+          group: "네트워크",
+        },
+        {
+          name: "라우팅 테이블 (2개)",
+          id: "rt-public, rt-private",
+          desc: "트래픽 경로 규칙",
+          role: "Public→IGW, Private→NAT 경로 지정",
+          cost: "무료",
+          color: C.green,
+          group: "네트워크",
+        },
+        {
+          name: "보안 그룹 (3개)",
+          id: "alb-sg, ecs-sg, rds-sg",
+          desc: "리소스별 방화벽",
+          role: "체인 구조: alb→ecs→rds",
+          cost: "무료",
+          color: C.green,
+          group: "네트워크",
+        },
+        {
+          name: "ALB",
+          id: "taskflow-alb",
+          desc: "외부 요청 진입점, 경로 기반 라우팅",
+          role: "/api/*→Backend, /*→Frontend",
+          cost: "~$20/월",
+          color: C.blue,
+          group: "트래픽",
+        },
+        {
+          name: "Target Group (2개)",
+          id: "frontend-tg, backend-tg",
+          desc: "ALB가 트래픽을 보내는 대상 묶음",
+          role: "IP target type (awsvpc 모드 필수)",
+          cost: "무료",
+          color: C.blue,
+          group: "트래픽",
+        },
+        {
+          name: "ECS Cluster",
+          id: "taskflow-cluster",
+          desc: "Task를 실행하는 논리적 묶음",
+          role: "EC2 launch type (Fargate 아님)",
+          cost: "무료",
+          color: C.orange,
+          group: "컴퓨팅",
+        },
+        {
+          name: "EC2 (ASG)",
+          id: "t3.small × 1",
+          desc: "Task가 실제로 돌아가는 서버",
+          role: "Private Subnet AZ-a, ENI 3/3 한계",
+          cost: "~$19/월",
+          color: C.orange,
+          group: "컴퓨팅",
+        },
+        {
+          name: "ECS Service (2개)",
+          id: "frontend/backend-service",
+          desc: "Task 유지/배포 + TG 자동 등록",
+          role: "min 0% / max 100% (ENI 제약, 다운타임 허용)",
+          cost: "무료",
+          color: C.orange,
+          group: "컴퓨팅",
+        },
+        {
+          name: "Task Definition (2개)",
+          id: "taskflow-frontend/backend",
+          desc: "컨테이너 실행 명세서",
+          role: "이미지, CPU/MEM, 환경변수, 포트 정의",
+          cost: "무료",
+          color: C.orange,
+          group: "컴퓨팅",
+        },
+        {
+          name: "ECR (2개)",
+          id: "taskflow/frontend, backend",
+          desc: "Docker 이미지 저장소",
+          role: "GitHub Actions에서 빌드 후 push",
+          cost: "500MB 무료",
+          color: C.cyan,
+          group: "이미지",
+        },
+        {
+          name: "RDS MySQL",
+          id: "taskflow-db",
+          desc: "관계형 데이터베이스",
+          role: "db.t4g.micro, Private Subnet, Backend만 접근",
+          cost: "~$17/월",
+          color: C.blue,
+          group: "데이터",
+        },
+        {
+          name: "SSM Parameter Store",
+          id: "/taskflow/db/* (5개)",
+          desc: "설정값 안전 저장소",
+          role: "DB 접속 정보 → ECS Task 시작 시 ValueFrom 주입",
+          cost: "무료",
+          color: C.cyan,
+          group: "데이터",
+        },
+        {
+          name: "IAM Role",
+          id: "ecsTaskExecutionRole",
+          desc: "Task의 AWS 서비스 접근 권한",
+          role: "ECR pull + SSM 읽기 + CloudWatch 로그",
+          cost: "무료",
+          color: C.yellow,
+          group: "보안",
+        },
+        {
+          name: "CloudWatch Logs",
+          id: "/ecs/taskflow-*",
+          desc: "컨테이너 로그 수집",
+          role: "Backend JSON 로그, 보존 7일",
+          cost: "미미",
+          color: C.purple,
+          group: "모니터링",
+        },
+        {
+          name: "GitHub Actions",
+          id: "deploy.yml",
+          desc: "CI/CD 파이프라인",
+          role: "master push → ECR → ECS 자동 배포",
+          cost: "무료(public)",
+          color: C.textDim,
+          group: "CI/CD",
+        },
+      ];
+
+      const Tab2Services = () => {
+        const groups = [...new Set(services.map((s) => s.group))];
+        return (
+          <div>
+            <SectionTitle sub="이 프로젝트에서 사용한 모든 AWS 서비스와 역할">
+              AWS 서비스 목록 & 역할
+            </SectionTitle>
+            {groups.map((group) => (
+              <div key={group} style={{ marginBottom: "18px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: C.textMuted,
+                    fontFamily: font,
+                    marginBottom: "8px",
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  {group}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                  }}
+                >
+                  {services
+                    .filter((s) => s.group === group)
+                    .map((s) => (
+                      <div
+                        key={s.name}
+                        style={{
+                          background: C.card,
+                          border: "1px solid " + C.border,
+                          borderRadius: "8px",
+                          padding: "14px 16px",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "flex-start",
+                          gap: "10px",
+                        }}
+                      >
+                        <div style={{ flex: "1 1 220px", minWidth: "200px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                color: s.color,
+                                fontFamily: font,
+                              }}
+                            >
+                              {s.name}
+                            </span>
+                            <Badge
+                              color={s.cost.includes("$") ? C.red : C.green}
+                            >
+                              {s.cost}
+                            </Badge>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              color: C.textMuted,
+                              fontFamily: font,
+                            }}
+                          >
+                            {s.id}
+                          </div>
+                        </div>
+                        <div style={{ flex: "2 1 300px" }}>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: C.text,
+                              fontFamily: font,
+                              marginBottom: "3px",
+                            }}
+                          >
+                            {s.desc}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: C.textDim,
+                              fontFamily: font,
+                            }}
+                          >
+                            → {s.role}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))}
+            <InfoBox title="월 예상 비용 합계" color={C.red} icon="💰">
+              NAT ~$33 + ALB ~$20 + EC2 ~$19 + RDS ~$17 + EBS ~$2.4 ≈{" "}
+              <strong style={{ color: C.red }}>약 $91/월</strong>
+              <br />
+              학습 크레딧 $200으로 약 2개월 운영 가능. 사용하지 않을 때는
+              NAT/ALB 삭제, RDS Stop, ASG 0으로 비용 절감.
+            </InfoBox>
+          </div>
+        );
+      };
+
+      /* ═══════════════════════════════════════
+   TAB 3 — Resource Relations (HTML cards)
+   ═══════════════════════════════════════ */
+      const RelGroup = ({ title, color, children }) => (
+        <div
+          style={{
+            border: "1px dashed " + color + "60",
+            borderRadius: "10px",
+            padding: "18px",
+            background: color + "05",
+            marginBottom: "14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 700,
+              color,
+              fontFamily: font,
+              marginBottom: "14px",
+              paddingBottom: "8px",
+              borderBottom: "1px solid " + color + "20",
+            }}
+          >
+            {title}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {children}
+          </div>
+        </div>
+      );
+
+      const RelNode = ({ label, sub, color = C.textDim }) => (
+        <div
+          style={{
+            background: color + "12",
+            border: "1px solid " + color + "35",
+            borderRadius: "6px",
+            padding: "9px 13px",
+            minWidth: "135px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: C.white,
+              fontFamily: font,
+            }}
+          >
+            {label}
+          </div>
+          <div
+            style={{
+              fontSize: "10px",
+              color: C.textMuted,
+              fontFamily: font,
+              marginTop: "3px",
+            }}
+          >
+            {sub}
+          </div>
+        </div>
+      );
+
+      const Tab3Relations = () => {
+        const Arrow = ({ label, color = C.textMuted }) => (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "6px 0",
+            }}
+          >
+            <div style={{ height: "2px", flex: 1, background: color + "30" }} />
+            <div
+              style={{
+                fontSize: "10px",
+                color,
+                fontFamily: font,
+                whiteSpace: "nowrap",
+              }}
+            >
+              ▼ {label}
+            </div>
+            <div style={{ height: "2px", flex: 1, background: color + "30" }} />
+          </div>
+        );
+        return (
+          <div>
+            <SectionTitle sub="각 리소스가 왜 필요하고, 어디서 사용되는지 — 위에서 아래로 의존 흐름">
+              리소스 연결 관계도
+            </SectionTitle>
+
+            <RelGroup title="① 계정 설정" color={C.yellow}>
+              <RelNode label="MFA" sub="루트 사용자 보안" color={C.yellow} />
+              <span
+                style={{
+                  color: C.yellow,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                →
+              </span>
+              <RelNode label="Budgets" sub="비용 알림" color={C.yellow} />
+              <span
+                style={{
+                  color: C.yellow,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                →
+              </span>
+              <RelNode
+                label="크레딧 $200"
+                sub="비용 모니터링"
+                color={C.yellow}
+              />
+              <span
+                style={{
+                  color: C.yellow,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                |
+              </span>
+              <RelNode label="액세스 키" sub="CLI 인증" color={C.yellow} />
+              <span
+                style={{
+                  color: C.yellow,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                →
+              </span>
+              <RelNode label="AWS CLI" sub="ECR push" color={C.yellow} />
+            </RelGroup>
+
+            <Arrow
+              label="액세스 키로 CLI 인증 → 아래 리소스 생성"
+              color={C.yellow}
+            />
+
+            <RelGroup
+              title="② 네트워크 계층 — 모든 리소스의 기반"
+              color={C.green}
+            >
+              <RelNode label="VPC" sub="가상 네트워크 공간" color={C.green} />
+              <span
+                style={{
+                  color: C.green,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                →
+              </span>
+              <RelNode label="서브넷 4개" sub="IP 구역 분리" color={C.green} />
+              <span
+                style={{
+                  color: C.green,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                →
+              </span>
+              <RelNode label="IGW" sub="양방향 출입문" color={C.purple} />
+              <span
+                style={{
+                  color: C.green,
+                  fontSize: "14px",
+                  alignSelf: "center",
+                }}
+              >
+                +
+              </span>
+              <RelNode label="NAT GW" sub="나가기 전용" color={C.green} />
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  marginTop: "4px",
+                }}
+              >
+                <RelNode
+                  label="Public RT → IGW"
+                  sub="경로 규칙"
+                  color={C.purple}
+                />
+                <span
+                  style={{
+                    color: C.purple,
+                    fontSize: "14px",
+                    alignSelf: "center",
+                  }}
+                >
+                  |
+                </span>
+                <RelNode
+                  label="Private RT → NAT"
+                  sub="경로 규칙"
+                  color={C.purple}
+                />
+                <span
+                  style={{
+                    color: C.green,
+                    fontSize: "14px",
+                    alignSelf: "center",
+                  }}
+                >
+                  →
+                </span>
+                <RelNode label="alb-sg" sub="0.0.0.0/0:80" color={C.blue} />
+                <span
+                  style={{
+                    color: C.red,
+                    fontSize: "14px",
+                    alignSelf: "center",
+                  }}
+                >
+                  →
+                </span>
+                <RelNode label="ecs-sg" sub="alb:80,8080" color={C.orange} />
+                <span
+                  style={{
+                    color: C.red,
+                    fontSize: "14px",
+                    alignSelf: "center",
+                  }}
+                >
+                  →
+                </span>
+                <RelNode label="rds-sg" sub="ecs:3306" color={C.blue} />
+              </div>
+            </RelGroup>
+
+            <Arrow label="네트워크 위에 데이터 + 이미지 배치" color={C.green} />
+
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 380px" }}>
+                <RelGroup title="③ 데이터 계층" color={C.blue}>
+                  <RelNode label="RDS MySQL" sub="taskflow-db" color={C.blue} />
+                  <span
+                    style={{
+                      color: C.blue,
+                      fontSize: "14px",
+                      alignSelf: "center",
+                    }}
+                  >
+                    ←
+                  </span>
+                  <RelNode
+                    label="DB 서브넷 그룹"
+                    sub="private-a/b"
+                    color={C.blue}
+                  />
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="SSM Param Store"
+                      sub="/taskflow/db/*"
+                      color={C.cyan}
+                    />
+                    <span
+                      style={{
+                        color: C.cyan,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode
+                      label="/db/host + /db/password"
+                      sub="보안 문자열(KMS)"
+                      color={C.cyan}
+                    />
+                    <span
+                      style={{
+                        color: C.orange,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode
+                      label="ECS Task에 주입"
+                      sub="ValueFrom"
+                      color={C.orange}
+                    />
+                  </div>
+                </RelGroup>
+              </div>
+              <div style={{ flex: "1 1 320px" }}>
+                <RelGroup title="④ 이미지 저장소" color={C.cyan}>
+                  <RelNode
+                    label="ECR (frontend)"
+                    sub="taskflow/frontend"
+                    color={C.cyan}
+                  />
+                  <RelNode
+                    label="ECR (backend)"
+                    sub="taskflow/backend"
+                    color={C.cyan}
+                  />
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="GitHub Actions"
+                      sub="자동 push"
+                      color={C.textDim}
+                    />
+                    <span
+                      style={{
+                        color: C.cyan,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode
+                      label=":latest + :hash"
+                      sub="태그 2개"
+                      color={C.cyan}
+                    />
+                  </div>
+                </RelGroup>
+              </div>
+            </div>
+
+            <Arrow
+              label="이미지 + DB 정보 → 컴퓨팅 계층에서 사용"
+              color={C.orange}
+            />
+
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 420px" }}>
+                <RelGroup title="⑤ 컴퓨팅 계층" color={C.orange}>
+                  <RelNode
+                    label="ECS Cluster"
+                    sub="taskflow-cluster"
+                    color={C.orange}
+                  />
+                  <span
+                    style={{
+                      color: C.orange,
+                      fontSize: "14px",
+                      alignSelf: "center",
+                    }}
+                  >
+                    →
+                  </span>
+                  <RelNode
+                    label="EC2 (ASG)"
+                    sub="t3.small × 1"
+                    color={C.orange}
+                  />
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="IAM Role"
+                      sub="ecsTaskExecRole"
+                      color={C.yellow}
+                    />
+                    <span
+                      style={{
+                        color: C.yellow,
+                        fontSize: "10px",
+                        alignSelf: "center",
+                        fontFamily: font,
+                      }}
+                    >
+                      (ECR pull + SSM + Logs)
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="Task Def (FE)"
+                      sub="nginx:80"
+                      color={C.cyan}
+                    />
+                    <span
+                      style={{
+                        color: C.orange,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode
+                      label="ECS Service (FE)"
+                      sub="desired=1"
+                      color={C.cyan}
+                    />
+                    <span
+                      style={{
+                        color: C.orange,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode label="TG에 IP 등록" sub="자동" color={C.blue} />
+                  </div>
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="Task Def (BE)"
+                      sub="boot:8080"
+                      color={C.orange}
+                    />
+                    <span
+                      style={{
+                        color: C.orange,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode
+                      label="ECS Service (BE)"
+                      sub="desired=1"
+                      color={C.orange}
+                    />
+                    <span
+                      style={{
+                        color: C.orange,
+                        fontSize: "14px",
+                        alignSelf: "center",
+                      }}
+                    >
+                      →
+                    </span>
+                    <RelNode label="TG에 IP 등록" sub="자동" color={C.blue} />
+                  </div>
+                  <RelNode
+                    label="CloudWatch Logs"
+                    sub="/ecs/taskflow-*"
+                    color={C.purple}
+                  />
+                </RelGroup>
+              </div>
+              <div style={{ flex: "1 1 280px" }}>
+                <RelGroup title="⑥ 트래픽 계층" color={C.blue}>
+                  <RelNode label="ALB" sub="Internet-facing" color={C.blue} />
+                  <span
+                    style={{
+                      color: C.blue,
+                      fontSize: "14px",
+                      alignSelf: "center",
+                    }}
+                  >
+                    →
+                  </span>
+                  <RelNode
+                    label="Listener HTTP:80"
+                    sub="경로 규칙 3개"
+                    color={C.blue}
+                  />
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="/api/* → Backend TG"
+                      sub="IP:8080"
+                      color={C.orange}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <RelNode
+                      label="/* → Frontend TG"
+                      sub="IP:80 (기본)"
+                      color={C.cyan}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      color: C.textMuted,
+                      fontFamily: font,
+                      marginTop: "8px",
+                      padding: "8px",
+                      background: C.card,
+                      borderRadius: "6px",
+                    }}
+                  >
+                    ECS Service가 Task 시작/종료 시<br />
+                    Target Group에 IP 자동 등록/해제
+                  </div>
+                </RelGroup>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div
+              style={{
+                background: C.card,
+                border: "1px solid " + C.border,
+                borderRadius: "8px",
+                padding: "16px",
+                marginTop: "14px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: C.white,
+                  fontFamily: font,
+                  marginBottom: "12px",
+                }}
+              >
+                연결 관계 요약
+              </div>
+              {[
+                {
+                  from: "MFA",
+                  to: "루트 사용자",
+                  why: "콘솔 로그인 시 2차 인증",
+                },
+                {
+                  from: "액세스 키",
+                  to: "AWS CLI",
+                  why: "WSL에서 ECR push 시 인증",
+                },
+                {
+                  from: "VPC",
+                  to: "모든 리소스",
+                  why: "가상 네트워크 공간 제공",
+                },
+                {
+                  from: "서브넷",
+                  to: "라우팅 테이블",
+                  why: "Public/Private 결정 (서브넷 자체가 아닌 RT가 결정)",
+                },
+                { from: "IGW", to: "Public Subnet", why: "인터넷 양방향 통신" },
+                {
+                  from: "NAT GW",
+                  to: "Private Subnet",
+                  why: "인터넷 나가기 전용 (ECR pull, 로그, SSM)",
+                },
+                {
+                  from: "보안 그룹 체인",
+                  to: "alb→ecs→rds",
+                  why: "역할 기반 방화벽, 최소 권한 원칙",
+                },
+                {
+                  from: "SSM Params",
+                  to: "Task Definition",
+                  why: "ValueFrom으로 DB 정보 주입 (비밀번호 노출 방지)",
+                },
+                {
+                  from: "ECS Service",
+                  to: "Target Group",
+                  why: "Task 시작/종료 시 IP 자동 등록/해제",
+                },
+                {
+                  from: "ALB Listener",
+                  to: "Target Group",
+                  why: "/api/*→Backend TG, /*→Frontend TG 경로 분기",
+                },
+                {
+                  from: "IAM Role",
+                  to: "Task",
+                  why: "ECR pull + SSM 읽기 + CloudWatch 로그 권한",
+                },
+              ].map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    alignItems: "baseline",
+                    padding: "7px 0",
+                    borderBottom: i < 10 ? "1px solid " + C.border : "none",
+                    fontSize: "11px",
+                    fontFamily: font,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: C.orange,
+                      fontWeight: 700,
+                      minWidth: "120px",
+                    }}
+                  >
+                    {r.from}
+                  </span>
+                  <span style={{ color: C.textMuted }}>→</span>
+                  <span style={{ color: C.cyan, minWidth: "110px" }}>
+                    {r.to}
+                  </span>
+                  <span style={{ color: C.textDim, flex: 1 }}>{r.why}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      };
+
+      /* ═══════════════════════════════════════
+   TAB 4 — Network Flow (branch numbering)
+   ═══════════════════════════════════════ */
+      const FlowStep = ({ num, label, sub, color, style: s }) => (
+        <div
+          style={{
+            background: color + "10",
+            border: "1px solid " + color + "40",
+            borderRadius: "8px",
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            ...s,
+          }}
+        >
+          <div
+            style={{
+              width: "34px",
+              height: "34px",
+              borderRadius: "50%",
+              flexShrink: 0,
+              background: color + "20",
+              border: "1px solid " + color + "50",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "12px",
+              fontWeight: 700,
+              color,
+              fontFamily: font,
+            }}
+          >
+            {num}
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: C.white,
+                fontFamily: font,
+              }}
+            >
+              {label}
+            </div>
+            <div
+              style={{
+                fontSize: "11px",
+                color: C.textMuted,
+                fontFamily: font,
+                marginTop: "2px",
+              }}
+            >
+              {sub}
+            </div>
+          </div>
+        </div>
+      );
+
+      const FlowArrow = ({ color = C.cyan }) => (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: "4px 0",
+          }}
+        >
+          <div
+            style={{ width: "2px", height: "18px", background: color + "50" }}
+          />
+        </div>
+      );
+
+      const Tab4Network = () => (
+        <div>
+          <SectionTitle sub="Inbound(외부→내부) / Outbound(내부→외부) 트래픽 경로">
+            네트워크 흐름도
+          </SectionTitle>
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+            {/* Inbound */}
+            <div style={{ flex: "1 1 480px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: C.cyan,
+                  fontFamily: font,
+                  marginBottom: "10px",
+                }}
+              >
+                ▼ Inbound (외부 → 내부)
+              </div>
+              <FlowStep
+                num="1"
+                label="Client"
+                sub="HTTPS 요청 (브라우저)"
+                color={C.textDim}
+              />
+              <FlowArrow color={C.cyan} />
+              <FlowStep
+                num="2"
+                label="Internet Gateway"
+                sub="VPC 진입점 (양방향)"
+                color={C.purple}
+              />
+              <FlowArrow color={C.cyan} />
+              <FlowStep
+                num="3"
+                label="ALB (alb-sg)"
+                sub="Listener Rule로 경로 분기"
+                color={C.blue}
+              />
+              <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+                <div style={{ flex: 1 }}>
+                  <FlowArrow color={C.orange} />
+                  <FlowStep
+                    num="4-1"
+                    label="/api/* → Backend TG"
+                    sub="IP:8080 → Spring Boot"
+                    color={C.orange}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <FlowArrow color={C.cyan} />
+                  <FlowStep
+                    num="4-2"
+                    label="/* → Frontend TG"
+                    sub="IP:80 → nginx 정적서빙"
+                    color={C.cyan}
+                  />
+                </div>
+              </div>
+              <FlowArrow color={C.orange} />
+              <FlowStep
+                num="5"
+                label="ECS Task (ecs-sg)"
+                sub="비즈니스 로직 처리"
+                color={C.orange}
+              />
+              <FlowArrow color={C.blue} />
+              <FlowStep
+                num="6"
+                label="RDS (rds-sg)"
+                sub="데이터 조회/저장 (:3306)"
+                color={C.blue}
+              />
+            </div>
+            {/* Outbound */}
+            <div style={{ flex: "1 1 360px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: C.orange,
+                  fontFamily: font,
+                  marginBottom: "10px",
+                }}
+              >
+                ▲ Outbound (내부 → 외부)
+              </div>
+              <FlowStep
+                num="1"
+                label="ECS Task (Private)"
+                sub="외부 리소스 접근 필요"
+                color={C.orange}
+              />
+              <FlowArrow color={C.orange} />
+              <FlowStep
+                num="2"
+                label="NAT Gateway (Public)"
+                sub="Private → Public 주소 변환"
+                color={C.green}
+              />
+              <FlowArrow color={C.orange} />
+              <FlowStep
+                num="3"
+                label="Internet Gateway"
+                sub="VPC → 인터넷"
+                color={C.purple}
+              />
+              <FlowArrow color={C.orange} />
+              <FlowStep
+                num="4"
+                label="외부 서비스"
+                sub="ECR, CloudWatch, SSM 등"
+                color={C.textDim}
+              />
+              <div
+                style={{
+                  background: C.card,
+                  border: "1px solid " + C.border,
+                  borderRadius: "8px",
+                  padding: "14px 16px",
+                  marginTop: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: C.cyan,
+                    fontFamily: font,
+                    marginBottom: "8px",
+                  }}
+                >
+                  NAT를 통해 나가는 경우
+                </div>
+                {[
+                  "ECR에서 Docker 이미지 pull",
+                  "CloudWatch에 로그 전송",
+                  "SSM Parameter Store에서 비밀번호 조회",
+                  "외부 API 호출 (필요 시)",
+                ].map((t, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      fontSize: "11px",
+                      color: C.textDim,
+                      fontFamily: font,
+                      padding: "3px 0",
+                    }}
+                  >
+                    • {t}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <InfoBox title="보안 그룹 체인 (접근 제어)" color={C.green} icon="🔒">
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "8px",
+                alignItems: "center",
+                marginBottom: "8px",
+              }}
+            >
+              <Badge color={C.blue}>alb-sg</Badge>
+              <span style={{ color: C.textMuted }}>0.0.0.0/0:80</span>
+              <span style={{ color: C.green, fontSize: "14px" }}>→</span>
+              <Badge color={C.orange}>ecs-sg</Badge>
+              <span style={{ color: C.textMuted }}>alb-sg:80,8080</span>
+              <span style={{ color: C.green, fontSize: "14px" }}>→</span>
+              <Badge color={C.blue}>rds-sg</Badge>
+              <span style={{ color: C.textMuted }}>ecs-sg:3306</span>
+            </div>
+            <strong style={{ color: C.green }}>라우팅 테이블</strong> = "길이
+            있는가?" (물리적 경로) /{" "}
+            <strong style={{ color: C.green }}>보안 그룹</strong> = "출입 허가가
+            있는가?" (접근 권한)
+            <br />
+            길이 있어도 허가 없으면 차단, 허가 있어도 길이 없으면 도착 불가.
+            인터넷에서 RDS로 직접 접근 불가 (최소 권한 원칙).
+          </InfoBox>
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB 5 — Health Check
+   ═══════════════════════════════════════ */
+      const HCBox = ({ label, sub, color }) => (
+        <div
+          style={{
+            background: color + "10",
+            border: "1px solid " + color + "40",
+            borderRadius: "8px",
+            padding: "10px 14px",
+            minWidth: "125px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              color: C.white,
+              fontFamily: font,
+            }}
+          >
+            {label}
+          </div>
+          <div
+            style={{
+              fontSize: "10px",
+              color: C.textMuted,
+              fontFamily: font,
+              marginTop: "3px",
+            }}
+          >
+            {sub}
+          </div>
+        </div>
+      );
+
+      const Tab5Health = () => (
+        <div>
+          <SectionTitle sub="ALB → Target Group → ECS Task 헬스체크 흐름과 유예 기간">
+            헬스체크 구조
+          </SectionTitle>
+
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: C.cyan,
+              fontFamily: font,
+              marginBottom: "8px",
+            }}
+          >
+            Frontend 헬스체크
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "18px",
+            }}
+          >
+            {[
+              { l: "ALB", s: "HTTP:80", c: C.blue },
+              { l: "Frontend TG", s: "GET /", c: C.cyan },
+              { l: "nginx Task", s: ":80 → 200 OK", c: C.cyan },
+              { l: "유예 60초", s: "nginx ~1-2초 시작", c: C.green },
+            ].map((n, i) => (
+              <div
+                key={i}
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <HCBox label={n.l} sub={n.s} color={n.c} />
+                {i < 3 && (
+                  <span style={{ color: C.cyan, fontSize: "16px" }}>→</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: C.orange,
+              fontFamily: font,
+              marginBottom: "8px",
+            }}
+          >
+            Backend 헬스체크
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "22px",
+            }}
+          >
+            {[
+              { l: "ALB", s: "HTTP:80", c: C.blue },
+              { l: "Backend TG", s: "GET /actuator/health", c: C.orange },
+              {
+                l: "Spring Boot Task",
+                s: ':8080 → {"status":"UP"}',
+                c: C.orange,
+              },
+              { l: "유예 120초", s: "Boot ~46초+Flyway+JVM", c: C.green },
+            ].map((n, i) => (
+              <div
+                key={i}
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <HCBox label={n.l} sub={n.s} color={n.c} />
+                {i < 3 && (
+                  <span style={{ color: C.orange, fontSize: "16px" }}>→</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: C.red,
+              fontFamily: font,
+              marginBottom: "8px",
+            }}
+          >
+            ⚠ 헬스체크 실패 시나리오 (유예 기간 0초일 때)
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "14px",
+            }}
+          >
+            {[
+              { l: "Task 시작", s: "Spring Boot 로딩 중...", c: C.orange },
+              { l: "ALB 헬스체크", s: "즉시 시작 → 실패", c: C.red },
+              { l: "ECS 판정", s: "unhealthy → Task 중지", c: C.red },
+              { l: "회로 차단기", s: "반복 실패 → 배포 중단", c: C.red },
+              { l: "해결", s: "유예 120초 + 강제 배포", c: C.green },
+            ].map((n, i) => (
+              <div
+                key={i}
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <div
+                  style={{
+                    background: n.c + "10",
+                    border: "1px solid " + n.c + "40",
+                    borderRadius: "8px",
+                    padding: "10px 14px",
+                    minWidth: "115px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: n.c,
+                      fontFamily: font,
+                    }}
+                  >
+                    {n.l}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      color: C.textMuted,
+                      fontFamily: font,
+                      marginTop: "2px",
+                    }}
+                  >
+                    {n.s}
+                  </div>
+                </div>
+                {i < 4 && (
+                  <span
+                    style={{ color: i < 3 ? C.red : C.green, fontSize: "16px" }}
+                  >
+                    →
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              background: C.card,
+              border: "1px solid " + C.border,
+              borderRadius: "8px",
+              padding: "14px 16px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: C.cyan,
+                fontFamily: font,
+                marginBottom: "4px",
+              }}
+            >
+              nginx-aws.conf 헬스체크 로그 제외
+            </div>
+            <div
+              style={{ fontSize: "11px", color: C.textDim, fontFamily: font }}
+            >
+              ALB 헬스체크(ELB-HealthChecker) 30초 간격 → CloudWatch 로그 스팸
+              방지 위해 User-Agent 기반 필터링
+            </div>
+          </div>
+
+          <InfoBox title="핵심 학습 포인트" color={C.orange} icon="📝">
+            <strong style={{ color: C.orange }}>
+              JVM 앱은 Cold Start가 느립니다.
+            </strong>{" "}
+            Spring Boot ~46초 + Flyway 마이그레이션 + JVM 워밍업.
+            <br />
+            → 헬스체크 유예 기간(Grace Period)을 충분히 설정하지 않으면 무한
+            재시작 루프에 빠집니다.
+            <br />→ ALB는 매핑된 각 AZ(public-a, public-b)에 노드를 갖고,
+            양쪽에서 독립적으로 헬스체크를 수행합니다.
+          </InfoBox>
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB 6 — CI/CD (branch numbering)
+   ═══════════════════════════════════════ */
+      const PipeStep = ({ num, label, sub, color }) => (
+        <div
+          style={{
+            background: color + "10",
+            border: "1px solid " + color + "40",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            flex: 1,
+            minWidth: "165px",
+          }}
+        >
+          <div
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              flexShrink: 0,
+              background: color + "25",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "11px",
+              fontWeight: 700,
+              color,
+              fontFamily: font,
+            }}
+          >
+            {num}
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: C.white,
+                fontFamily: font,
+              }}
+            >
+              {label}
+            </div>
+            <div
+              style={{
+                fontSize: "10px",
+                color: C.textMuted,
+                fontFamily: font,
+                marginTop: "2px",
+              }}
+            >
+              {sub}
+            </div>
+          </div>
+        </div>
+      );
+
+      const HArrow = ({ color = C.textMuted }) => (
+        <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <div
+            style={{ width: "20px", height: "2px", background: color + "50" }}
+          />
+          <div
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: "6px solid " + color + "50",
+              borderTop: "4px solid transparent",
+              borderBottom: "4px solid transparent",
+            }}
+          />
+        </div>
+      );
+
+      const Tab6CICD = () => (
+        <div>
+          <SectionTitle sub="deploy.yml 기반 · master push → ECR → ECS 자동 배포">
+            CI/CD 파이프라인
+          </SectionTitle>
+          <div
+            style={{
+              fontSize: "11px",
+              color: C.textMuted,
+              fontFamily: font,
+              marginBottom: "12px",
+            }}
+          >
+            트리거: master branch push 또는 workflow_dispatch (수동)
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "18px",
+            }}
+          >
+            <PipeStep
+              num="1"
+              label="코드 체크아웃"
+              sub="actions/checkout@v4"
+              color={C.textDim}
+            />
+            <HArrow />
+            <PipeStep
+              num="2"
+              label="이미지 태그 설정"
+              sub="git rev-parse --short HEAD"
+              color={C.purple}
+            />
+            <HArrow />
+            <PipeStep
+              num="3"
+              label="AWS 자격 증명"
+              sub="Access Key (GitHub Secrets)"
+              color={C.yellow}
+            />
+            <HArrow />
+            <PipeStep
+              num="4"
+              label="ECR 로그인"
+              sub="amazon-ecr-login@v2"
+              color={C.cyan}
+            />
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: C.orange,
+              fontFamily: font,
+              marginBottom: "8px",
+            }}
+          >
+            Backend
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "18px",
+            }}
+          >
+            <PipeStep
+              num="5-1"
+              label="Docker Build"
+              sub="docker build ./backend"
+              color={C.orange}
+            />
+            <HArrow color={C.orange} />
+            <PipeStep
+              num="5-2"
+              label="ECR Push"
+              sub=":latest + :커밋해시"
+              color={C.orange}
+            />
+            <HArrow color={C.orange} />
+            <PipeStep
+              num="5-3"
+              label="ECS 배포"
+              sub="force-new-deployment"
+              color={C.orange}
+            />
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: C.cyan,
+              fontFamily: font,
+              marginBottom: "8px",
+            }}
+          >
+            Frontend
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "18px",
+            }}
+          >
+            <PipeStep
+              num="6-1"
+              label="Docker Build"
+              sub="--build-arg NGINX_CONF=nginx-aws.conf"
+              color={C.cyan}
+            />
+            <HArrow color={C.cyan} />
+            <PipeStep
+              num="6-2"
+              label="ECR Push"
+              sub=":latest + :커밋해시"
+              color={C.cyan}
+            />
+            <HArrow color={C.cyan} />
+            <PipeStep
+              num="6-3"
+              label="ECS 배포"
+              sub="force-new-deployment"
+              color={C.cyan}
+            />
+          </div>
+          <div
+            style={{
+              background: C.card,
+              border: "1px solid " + C.border,
+              borderRadius: "8px",
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: C.yellow,
+                fontFamily: font,
+                marginBottom: "10px",
+              }}
+            >
+              GitHub Secrets (3개)
+            </div>
+            {[
+              { k: "AWS_ACCESS_KEY_ID", d: "IAM 액세스 키 (CLI 인증)" },
+              { k: "AWS_SECRET_ACCESS_KEY", d: "IAM 시크릿 키 (CLI 인증)" },
+              { k: "AWS_ACCOUNT_ID", d: "ECR URI 구성에 사용 (고정값)" },
+            ].map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: "16px",
+                  padding: "7px 0",
+                  borderBottom: i < 2 ? "1px solid " + C.border : "none",
+                  fontSize: "11px",
+                  fontFamily: font,
+                }}
+              >
+                <span
+                  style={{
+                    color: C.yellow,
+                    fontWeight: 700,
+                    minWidth: "225px",
+                  }}
+                >
+                  {s.k}
+                </span>
+                <span style={{ color: C.textDim }}>{s.d}</span>
+              </div>
+            ))}
+            <div
+              style={{
+                fontSize: "10px",
+                color: C.textMuted,
+                fontFamily: font,
+                marginTop: "10px",
+              }}
+            >
+              • 단일 job 구성 (병렬 분리 안 함 — 학습 목적, 단순성 우선) •
+              Access Key 방식 (OIDC보다 설정 단순)
+            </div>
+          </div>
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB 7 — Console Steps
+   ═══════════════════════════════════════ */
+      const steps = [
+        {
+          phase: "0단계",
+          title: "계정 설정",
+          color: C.yellow,
+          items: [
+            "AWS 회원가입 (무료 플랜 선택, $100 크레딧)",
+            "리전 선택: ap-northeast-2 (서울)",
+            "MFA 설정 (Google Authenticator)",
+            "AWS Budgets 설정 (제로 지출 예산)",
+            "온보딩 크레딧 $100 추가 획득 (총 $200)",
+          ],
+        },
+        {
+          phase: "1단계",
+          title: "네트워크 구성",
+          color: C.green,
+          items: [
+            "VPC 생성: taskflow-vpc (10.0.0.0/16) + DNS 호스트 이름 활성화",
+            "서브넷 4개: public-a/b (10.0.1.0, 2.0/24), private-a/b (10.0.11.0, 12.0/24)",
+            "인터넷 게이트웨이: taskflow-igw → VPC에 연결",
+            "NAT Gateway: taskflow-nat (public-a, 탄력적 IP 할당)",
+            "라우팅 테이블 2개: public→IGW, private→NAT + 서브넷 연결",
+            "보안 그룹 3개: alb-sg(80), ecs-sg(80,8080), rds-sg(3306) 체인",
+          ],
+        },
+        {
+          phase: "2단계",
+          title: "DB + 이미지 저장소",
+          color: C.blue,
+          items: [
+            "RDS 서브넷 그룹: private-a/b (Private만 후보)",
+            "RDS MySQL: taskflow-db (db.t4g.micro, 프리 티어, public 접근 아니요)",
+            "SSM Parameter Store: /taskflow/db/* 5개 등록 (password는 보안 문자열)",
+            "ECR 리포지토리 2개: taskflow/frontend, taskflow/backend",
+            "AWS CLI 설치 + 액세스 키 생성 + ECR 이미지 push",
+          ],
+        },
+        {
+          phase: "3단계",
+          title: "서버 + 서비스 띄우기",
+          color: C.orange,
+          items: [
+            "ECS Cluster: taskflow-cluster (EC2 launch type, t3.small)",
+            "IAM Role: ecsTaskExecutionRole (ECR pull + SSM 읽기 + 로그)",
+            "Task Definition 2개: frontend (nginx:80) + backend (boot:8080, SSM ValueFrom)",
+            "ALB: taskflow-alb (Internet-facing, public-a/b 매핑)",
+            "Target Group 2개: frontend-tg (IP:80), backend-tg (IP:8080) ← IP 타입 필수!",
+            "Listener Rules: /api/*→Backend, /actuator/*→Backend, /*→Frontend",
+            "ECS Service 2개: min 0% / max 100% (ENI 제약), private-a만",
+          ],
+        },
+        {
+          phase: "4단계",
+          title: "문제 해결 + 동작 확인",
+          color: C.red,
+          items: [
+            "Backend 배포 실패 → 헬스체크 유예 기간 0→120초 변경",
+            "Frontend 유예 기간 0→60초 변경",
+            "강제 새 배포 (회로 차단기 리셋)",
+            "ALB DNS로 전체 동작 확인: UI, API, Actuator, CRUD 테스트",
+          ],
+        },
+        {
+          phase: "5단계",
+          title: "CloudWatch Logs",
+          color: C.purple,
+          items: [
+            "로그 그룹 확인: /ecs/taskflow-backend (JSON), /ecs/taskflow-frontend (nginx)",
+            "보존 기간 7일 설정 (기본값 영구 → 비용 절감)",
+            "Backend JSON 구조화 로그 → Logs Insights 쿼리 가능",
+          ],
+        },
+        {
+          phase: "6단계",
+          title: "CI/CD",
+          color: C.cyan,
+          items: [
+            "develop/master 브랜치 분리",
+            "GitHub Secrets 3개 등록 (Access Key, Secret Key, Account ID)",
+            "deploy.yml 작성: 10단계 파이프라인",
+            "Task Definition 이미지 태그 :latest로 변경",
+            "PR merge → 자동 배포 확인",
+          ],
+        },
+        {
+          phase: "7단계",
+          title: "추가 설정",
+          color: C.textDim,
+          items: [
+            "ecsInstanceRole에 AmazonSSMManagedInstanceCore 정책 추가",
+            "EC2 Session Manager 접속 확인",
+            "nginx-aws.conf 헬스체크 로그 제외 설정",
+            "EC2 내부 탐색: docker ps, free -h, ip addr, curl checkip",
+          ],
+        },
+      ];
+
+      const Tab7Console = () => (
+        <div>
+          <SectionTitle sub="AWS 콘솔에서 실제로 진행한 작업 순서 (0단계 ~ 7단계)">
+            콘솔 작업 순서
+          </SectionTitle>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+          >
+            {steps.map((s, si) => (
+              <div
+                key={si}
+                style={{
+                  background: C.card,
+                  border: "1px solid " + C.border,
+                  borderRadius: "10px",
+                  padding: "14px 16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      background: s.color + "20",
+                      color: s.color,
+                      fontFamily: font,
+                    }}
+                  >
+                    {si}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: s.color,
+                      fontFamily: font,
+                    }}
+                  >
+                    {s.phase}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      color: C.white,
+                      fontFamily: font,
+                    }}
+                  >
+                    {s.title}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    paddingLeft: "38px",
+                  }}
+                >
+                  {s.items.map((item, ii) => (
+                    <div
+                      key={ii}
+                      style={{
+                        fontSize: "11px",
+                        color: C.textDim,
+                        fontFamily: font,
+                        lineHeight: 1.7,
+                        display: "flex",
+                        gap: "8px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: s.color,
+                          flexShrink: 0,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ›
+                      </span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <InfoBox title="작업 순서의 원칙" color={C.green} icon="🔑">
+            <strong style={{ color: C.green }}>의존 관계 순서:</strong> 네트워크
+            → 데이터 → 이미지 → 컴퓨팅 → 트래픽 → 서비스
+            <br />
+            보안 그룹은 서비스보다 먼저 만듦 (규칙 묶음일 뿐, 나중에 서비스에
+            적용).
+            <br />
+            ALB/TG도 ECS Service보다 먼저 만듦 (Service 생성 시 TG에 연결).
+          </InfoBox>
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB 8 — Local vs AWS
+   ═══════════════════════════════════════ */
+      const Tab8Compare = () => (
+        <div>
+          <SectionTitle sub="동일한 앱이 로컬과 AWS에서 어떻게 다르게 구성되는지">
+            로컬 vs AWS 비교
+          </SectionTitle>
+          <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                flex: "1 1 380px",
+                background: C.card,
+                border: "1px solid " + C.border,
+                borderRadius: "10px",
+                padding: "16px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: C.cyan,
+                  fontFamily: font,
+                  marginBottom: "12px",
+                }}
+              >
+                로컬 (docker-compose)
+              </div>
+              <svg
+                viewBox="0 0 360 290"
+                style={{ width: "100%", height: "auto" }}
+              >
+                <rect width="360" height="290" fill={C.bg} rx="6" />
+                <rect
+                  x="110"
+                  y="10"
+                  width="140"
+                  height="36"
+                  rx="6"
+                  fill={C.card}
+                  stroke={C.textMuted}
+                  strokeWidth="1"
+                />
+                <text
+                  x="180"
+                  y="33"
+                  textAnchor="middle"
+                  fill={C.text}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  브라우저
+                </text>
+                <rect
+                  x="60"
+                  y="68"
+                  width="240"
+                  height="92"
+                  rx="6"
+                  fill={C.cyanDim}
+                  stroke={C.cyan}
+                  strokeWidth="1"
+                />
+                <text
+                  x="180"
+                  y="92"
+                  textAnchor="middle"
+                  fill={C.cyan}
+                  fontSize="12"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  nginx (:80)
+                </text>
+                <text
+                  x="180"
+                  y="110"
+                  textAnchor="middle"
+                  fill={C.textMuted}
+                  fontSize="10"
+                  fontFamily={font}
+                >
+                  정적 파일 서빙 + API 프록시
+                </text>
+                <text
+                  x="85"
+                  y="130"
+                  fill={C.textDim}
+                  fontSize="9"
+                  fontFamily={font}
+                >
+                  / → React 정적 파일
+                </text>
+                <text
+                  x="85"
+                  y="146"
+                  fill={C.textDim}
+                  fontSize="9"
+                  fontFamily={font}
+                >
+                  /api/* → proxy_pass → :8080
+                </text>
+                <line
+                  x1="180"
+                  y1="46"
+                  x2="180"
+                  y2="68"
+                  stroke={C.cyan}
+                  strokeWidth="1.5"
+                />
+                <polygon points="180,68 177,61 183,61" fill={C.cyan} />
+                <rect
+                  x="95"
+                  y="182"
+                  width="170"
+                  height="40"
+                  rx="6"
+                  fill={C.orangeDim}
+                  stroke={C.orange}
+                  strokeWidth="1"
+                />
+                <text
+                  x="180"
+                  y="208"
+                  textAnchor="middle"
+                  fill={C.orange}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  Spring Boot (:8080)
+                </text>
+                <line
+                  x1="180"
+                  y1="160"
+                  x2="180"
+                  y2="182"
+                  stroke={C.orange}
+                  strokeWidth="1.5"
+                />
+                <polygon points="180,182 177,175 183,175" fill={C.orange} />
+                <rect
+                  x="95"
+                  y="244"
+                  width="170"
+                  height="36"
+                  rx="6"
+                  fill={C.blueDim}
+                  stroke={C.blue}
+                  strokeWidth="1"
+                />
+                <text
+                  x="180"
+                  y="268"
+                  textAnchor="middle"
+                  fill={C.blue}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  MySQL (:3306)
+                </text>
+                <line
+                  x1="180"
+                  y1="222"
+                  x2="180"
+                  y2="244"
+                  stroke={C.blue}
+                  strokeWidth="1.5"
+                />
+                <polygon points="180,244 177,237 183,237" fill={C.blue} />
+                <rect
+                  x="10"
+                  y="42"
+                  width="90"
+                  height="20"
+                  rx="4"
+                  fill="rgba(245,158,11,0.15)"
+                  stroke={C.yellow}
+                  strokeWidth="0.8"
+                />
+                <text
+                  x="55"
+                  y="55"
+                  textAnchor="middle"
+                  fill={C.yellow}
+                  fontSize="9"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  nginx = 프록시
+                </text>
+              </svg>
+            </div>
+            <div
+              style={{
+                flex: "1 1 380px",
+                background: C.card,
+                border: "1px solid " + C.border,
+                borderRadius: "10px",
+                padding: "16px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: C.orange,
+                  fontFamily: font,
+                  marginBottom: "12px",
+                }}
+              >
+                AWS (ECS)
+              </div>
+              <svg
+                viewBox="0 0 360 290"
+                style={{ width: "100%", height: "auto" }}
+              >
+                <rect width="360" height="290" fill={C.bg} rx="6" />
+                <rect
+                  x="110"
+                  y="10"
+                  width="140"
+                  height="36"
+                  rx="6"
+                  fill={C.card}
+                  stroke={C.textMuted}
+                  strokeWidth="1"
+                />
+                <text
+                  x="180"
+                  y="33"
+                  textAnchor="middle"
+                  fill={C.text}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  브라우저
+                </text>
+                <rect
+                  x="40"
+                  y="68"
+                  width="280"
+                  height="78"
+                  rx="6"
+                  fill={C.blueDim}
+                  stroke={C.blue}
+                  strokeWidth="1"
+                />
+                <text
+                  x="180"
+                  y="92"
+                  textAnchor="middle"
+                  fill={C.blue}
+                  fontSize="12"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  ALB (:80) — 경로 라우팅
+                </text>
+                <text
+                  x="85"
+                  y="115"
+                  fill={C.textDim}
+                  fontSize="10"
+                  fontFamily={font}
+                >
+                  /* → Frontend TG
+                </text>
+                <text
+                  x="85"
+                  y="132"
+                  fill={C.textDim}
+                  fontSize="10"
+                  fontFamily={font}
+                >
+                  /api/* → Backend TG
+                </text>
+                {/* Browser → ALB */}
+                <line
+                  x1="180"
+                  y1="46"
+                  x2="180"
+                  y2="68"
+                  stroke={C.blue}
+                  strokeWidth="1.5"
+                />
+                <polygon points="180,68 176,60 184,60" fill={C.blue} />
+                {/* nginx */}
+                <rect
+                  x="25"
+                  y="168"
+                  width="140"
+                  height="48"
+                  rx="6"
+                  fill={C.cyanDim}
+                  stroke={C.cyan}
+                  strokeWidth="1"
+                />
+                <text
+                  x="95"
+                  y="192"
+                  textAnchor="middle"
+                  fill={C.cyan}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  nginx (:80)
+                </text>
+                <text
+                  x="95"
+                  y="208"
+                  textAnchor="middle"
+                  fill={C.textMuted}
+                  fontSize="10"
+                  fontFamily={font}
+                >
+                  정적 서빙만!
+                </text>
+                {/* ALB → nginx: down-left */}
+                <line
+                  x1="120"
+                  y1="146"
+                  x2="97"
+                  y2="165"
+                  stroke={C.cyan}
+                  strokeWidth="1.2"
+                />
+                <polygon points="95,168 105,165 95,160" fill={C.cyan} />
+                {/* Spring Boot */}
+                <rect
+                  x="190"
+                  y="168"
+                  width="145"
+                  height="48"
+                  rx="6"
+                  fill={C.orangeDim}
+                  stroke={C.orange}
+                  strokeWidth="1"
+                />
+                <text
+                  x="262"
+                  y="192"
+                  textAnchor="middle"
+                  fill={C.orange}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  Spring Boot (:8080)
+                </text>
+                <text
+                  x="262"
+                  y="208"
+                  textAnchor="middle"
+                  fill={C.textMuted}
+                  fontSize="10"
+                  fontFamily={font}
+                >
+                  비즈니스 로직
+                </text>
+                {/* ALB → Spring Boot: down-right */}
+                <line
+                  x1="230"
+                  y1="146"
+                  x2="260"
+                  y2="165"
+                  stroke={C.orange}
+                  strokeWidth="1.2"
+                />
+                <polygon points="262,168 250,165 261,160" fill={C.orange} />
+                {/* RDS */}
+                <rect
+                  x="190"
+                  y="240"
+                  width="145"
+                  height="40"
+                  rx="6"
+                  fill={C.blueDim}
+                  stroke={C.blue}
+                  strokeWidth="1"
+                />
+                <text
+                  x="262"
+                  y="266"
+                  textAnchor="middle"
+                  fill={C.blue}
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  RDS MySQL (:3306)
+                </text>
+                <line
+                  x1="262"
+                  y1="216"
+                  x2="262"
+                  y2="240"
+                  stroke={C.blue}
+                  strokeWidth="1.5"
+                />
+                <polygon points="262,240 258,232 266,232" fill={C.blue} />
+                {/* Badge */}
+                <rect
+                  x="10"
+                  y="42"
+                  width="80"
+                  height="20"
+                  rx="4"
+                  fill="rgba(245,158,11,0.15)"
+                  stroke={C.yellow}
+                  strokeWidth="0.8"
+                />
+                <text
+                  x="50"
+                  y="55"
+                  textAnchor="middle"
+                  fill={C.yellow}
+                  fontSize="9"
+                  fontWeight="bold"
+                  fontFamily={font}
+                >
+                  ALB = 라우터
+                </text>
+              </svg>
+            </div>
+          </div>
+          <div
+            style={{
+              marginTop: "14px",
+              background: C.card,
+              border: "1px solid " + C.border,
+              borderRadius: "10px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                borderBottom: "1px solid " + C.border,
+                fontSize: "12px",
+                fontFamily: font,
+                fontWeight: 700,
+              }}
+            >
+              <div
+                style={{
+                  width: "130px",
+                  padding: "10px 14px",
+                  color: C.textMuted,
+                  borderRight: "1px solid " + C.border,
+                }}
+              >
+                항목
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  padding: "10px 14px",
+                  color: C.cyan,
+                  borderRight: "1px solid " + C.border,
+                }}
+              >
+                로컬
+              </div>
+              <div style={{ flex: 1, padding: "10px 14px", color: C.orange }}>
+                AWS
+              </div>
+            </div>
+            {[
+              {
+                a: "API 라우팅",
+                l: "nginx proxy_pass",
+                w: "ALB Listener Rule",
+              },
+              {
+                a: "nginx 역할",
+                l: "정적 서빙 + API 프록시",
+                w: "정적 서빙만 (nginx-aws.conf)",
+              },
+              { a: "DB", l: "Docker MySQL 컨테이너", w: "RDS MySQL (관리형)" },
+              {
+                a: "환경변수",
+                l: "docker-compose.yml 직접 기입",
+                w: "SSM Parameter Store → ValueFrom",
+              },
+              {
+                a: "프론트 코드",
+                l: "/api/... 상대경로",
+                w: "/api/... 상대경로 (동일!)",
+              },
+              { a: "접속 URL", l: "http://localhost/", w: "http://ALB_DNS/" },
+            ].map((r, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  borderBottom: i < 5 ? "1px solid " + C.border : "none",
+                  fontSize: "11px",
+                  fontFamily: font,
+                }}
+              >
+                <div
+                  style={{
+                    width: "130px",
+                    padding: "10px 14px",
+                    color: C.textMuted,
+                    flexShrink: 0,
+                    borderRight: "1px solid " + C.border,
+                  }}
+                >
+                  {r.a}
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    padding: "10px 14px",
+                    color: C.cyan,
+                    borderRight: "1px solid " + C.border,
+                  }}
+                >
+                  {r.l}
+                </div>
+                <div style={{ flex: 1, padding: "10px 14px", color: C.orange }}>
+                  {r.w}
+                </div>
+              </div>
+            ))}
+          </div>
+          <InfoBox title="핵심 차이" color={C.green} icon="✅">
+            <strong style={{ color: C.white }}>프론트 코드는 변경 없음!</strong>{" "}
+            항상 <code style={{ color: C.cyan }}>/api/...</code> 상대경로로
+            호출하기 때문에, 로컬이든 AWS든 코드 수정이 필요 없습니다.
+            <br />
+            로컬에서는 nginx가 <code style={{ color: C.cyan }}>proxy_pass</code>
+            로 API를 전달하고, AWS에서는 ALB가 경로 기반으로 라우팅합니다.
+          </InfoBox>
+        </div>
+      );
+
+      /* ═══════════════════════════════════════
+   TAB CONFIG & MAIN
+   ═══════════════════════════════════════ */
+      const tabs = [
+        { id: "arch", label: "구조도", icon: "🏗", comp: Tab1Architecture },
+        { id: "svc", label: "서비스 목록", icon: "📦", comp: Tab2Services },
+        { id: "rel", label: "연결 관계", icon: "🔗", comp: Tab3Relations },
+        { id: "net", label: "네트워크", icon: "🌐", comp: Tab4Network },
+        { id: "hc", label: "헬스체크", icon: "💓", comp: Tab5Health },
+        { id: "cicd", label: "CI/CD", icon: "🚀", comp: Tab6CICD },
+        { id: "console", label: "콘솔 작업", icon: "🖥", comp: Tab7Console },
+        { id: "compare", label: "로컬vs AWS", icon: "⚖", comp: Tab8Compare },
+      ];
+
+      function TaskFlowAWSDiagram() {
+        const [active, setActive] = useState("arch");
+        const ActiveComp =
+          tabs.find((t) => t.id === active)?.comp || Tab1Architecture;
+
+        return (
+          <div
+            style={{ background: C.bg, minHeight: "100vh", fontFamily: font }}
+          >
+            <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: ${C.bg}; }
+        ::-webkit-scrollbar-thumb { background: ${C.borderLight}; border-radius: 3px; }
+      `}</style>
+
+            <div
+              style={{
+                padding: "16px 20px 0",
+                borderBottom: "1px solid " + C.border,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "12px",
+                }}
+              >
+                <span style={{ fontSize: "20px" }}>☁️</span>
+                <span
+                  style={{
+                    fontSize: "17px",
+                    fontWeight: 700,
+                    color: C.white,
+                    fontFamily: font,
+                  }}
+                >
+                  TaskFlow AWS 아키텍처
+                </span>
+                <Badge color={C.orange}>ap-northeast-2</Badge>
+                <Badge color={C.green}>학습용</Badge>
+              </div>
+              <div style={{ display: "flex", gap: "2px", overflowX: "auto" }}>
+                {tabs.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setActive(t.id)}
+                    style={{
+                      padding: "10px 14px",
+                      border: "none",
+                      borderRadius: "6px 6px 0 0",
+                      cursor: "pointer",
+                      fontFamily: font,
+                      fontSize: "12px",
+                      fontWeight: active === t.id ? 700 : 400,
+                      background: active === t.id ? C.card : "transparent",
+                      color: active === t.id ? C.white : C.textMuted,
+                      borderBottom:
+                        active === t.id
+                          ? "2px solid " + C.orange
+                          : "2px solid transparent",
+                      whiteSpace: "nowrap",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {t.icon} {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "18px 20px 28px",
+                maxWidth: "1080px",
+                margin: "0 auto",
+              }}
+            >
+              <ActiveComp />
+            </div>
+
+            <div
+              style={{
+                textAlign: "center",
+                padding: "10px",
+                borderTop: "1px solid " + C.border,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: C.textMuted,
+                  fontFamily: font,
+                }}
+              >
+                TaskFlow · React + Spring Boot + MySQL · Docker → ECR → ECS →
+                ALB → RDS
+              </span>
+            </div>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        React.createElement(TaskFlowAWSDiagram),
+      );
+    </script>
+  </body>
+</html>
